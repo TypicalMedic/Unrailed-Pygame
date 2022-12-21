@@ -19,19 +19,19 @@ class player(sprite):
         self.direction = {
             'left': {
                 'dir': [-1, 0],
-                'pic':  pg.image.load('player_left.png').convert_alpha()
+                'pic':  pg.image.load('Assets/player_left.png').convert_alpha()
             },
             'right': {
                 'dir': [1, 0],
-                'pic':  pg.image.load('player_right.png').convert_alpha()
+                'pic':  pg.image.load('Assets/player_right.png').convert_alpha()
             },
             'up': {
                 'dir': [0, -1],
-                'pic': pg.image.load('player_up.png').convert_alpha()
+                'pic': pg.image.load('Assets/player_up.png').convert_alpha()
             },
             'down': {
                 'dir': [0, 1],
-                'pic': pg.image.load('player_down.png').convert_alpha()
+                'pic': pg.image.load('Assets/player_down.png').convert_alpha()
             }
         }
         self.pl_dir = self.direction['up']

@@ -39,8 +39,10 @@ pg.init()
 
 info_panel_height = 100
 screen = pg.display.set_mode(size=[600, 500])
-pl_dir_pics = [pg.image.load('player_left.png').convert_alpha(), pg.image.load('player_right.png').convert_alpha(),
-               pg.image.load('player_up.png').convert_alpha(), pg.image.load('player_down.png').convert_alpha()]
+pl_dir_pics = [pg.image.load('Assets/player_left.png').convert_alpha(), pg.image.load(
+    'Assets/player_right.png').convert_alpha(),
+               pg.image.load('Assets/player_up.png').convert_alpha(), pg.image.load(
+        'Assets/player_down.png').convert_alpha()]
 bgclr = (255, 255, 255)
 square_size = 20
 square_color = 'grey'
@@ -54,14 +56,14 @@ collected_rails = 0
 trees_needed = 1
 steel_needed = 1
 
-pl = spr.player(pl_x, pl_y, 'player_up.png', square_size, square_size)
-train = ent.train(50, 50, square_size, 'train.png')
-station = spr.sprite(250, 50, 'station.png')
+pl = spr.player(pl_x, pl_y, 'Assets/player_up.png', square_size, square_size)
+train = ent.train(50, 50, square_size, 'Assets/train.png')
+station = spr.sprite(250, 50, 'Assets/station.png')
 
 rail_list = []
 rails = pg.sprite.Group(rail_list)
 used_rail_list = []
-rail = spr.sprite(50, 50, 'usedrail.png')
+rail = spr.sprite(50, 50, 'Assets/usedrail.png')
 used_rail_list.append(rail)
 used_rails = pg.sprite.Group(used_rail_list)
 
@@ -72,7 +74,7 @@ for i in range(wall_amount):
         spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
                    random.randint(0, (
                                screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                   'wall.png'))
+                   'Assets/wall.png'))
 walls = pg.sprite.Group(walls_list)
 
 trees_amount = 50
@@ -83,7 +85,7 @@ for i in range(trees_amount):
         ent.Resource(spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
                                 random.randint(0, (
                                         screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                                'tree.png'),
+                                'Assets/tree.png'),
                      10, 1))
 trees_list_sprites = get_entities_sprites(trees_list)
 trees = pg.sprite.Group(trees_list_sprites)
@@ -96,7 +98,7 @@ for i in range(steel_amount):
         ent.Resource(spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
                                 random.randint(0, (
                                         screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                                'steel.png'),
+                                'Assets/steel.png'),
                      10, 1))
 steel_list_sprites = get_entities_sprites(steel_list)
 steel = pg.sprite.Group(steel_list_sprites)
@@ -121,7 +123,7 @@ while not game_over:
         if train.sprite.rect.collidelist(rail_list) != -1:
             train.speed += train.speed * 0.1
             ur = rail_list.pop(train.sprite.rect.collidelist(rail_list))
-            ur.image = pg.image.load('usedrail.png').convert_alpha()
+            ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
             used_rail_list.append(ur)
             used_rails = pg.sprite.Group(used_rail_list)
             rails = pg.sprite.Group(rail_list)
@@ -168,7 +170,8 @@ while not game_over:
                             and collide_trees == -1 and collide_walls == -1 \
                             and pl.collider.collidelist(used_rail_list) == -1:
                         collected_rails -= 1
-                        rail = spr.sprite(pl.collider.x + square_size / 2, pl.collider.y + square_size / 2, 'rail.png')
+                        rail = spr.sprite(pl.collider.x + square_size / 2, pl.collider.y + square_size / 2,
+                                          'Assets/rail.png')
                         rail_list.append(rail)
                         rails = pg.sprite.Group(rail_list)
                 else:
