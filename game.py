@@ -1,212 +1,308 @@
-import random
-
 import pygame as pg
 import Sprites as spr
 import Entities as ent
+from Player import Player
+import numpy as np
+
+MAP = [
+    ["w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w",
+     "w"],
+    ["w", "", "t", "", "s", "s", "", "", "", "", "t", "", "", "", "", "", "s", "t", "", "", "", "w", "t", "w"],
+    ["w", "", "", "", "", "", "", "", "", "t", "t", "", "", "w", "", "", "t", "", "", "", "", "t", "t", "w"],
+    ["w", "t", "t", "t", "", "", "", "", "", "t", "t", "", "", "", "", "", "", "", "", "", "", "s", "s", "w"],
+    ["w", "t", "t", "T", "", "", "", "w", "s", "", "", "", "", "t", "", "s", "", "", "", "", "s", "s", "s", "w"],
+    ["w", "", "", "p0", "p1", "", "", "s", "s", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
+    ["w", "", "", "", "", "", "", "w", "", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
+    ["w", "s", "", "", "", "", "", "", "t", "", "", "", "", "", "", "", "", "", "w", "w", "", "", "", "w"],
+    ["w", "s", "s", "", "s", "", "", "", "s", "", "S", "", "", "", "w", "w", "", "", "w", "s", "t", "", "", "w"],
+    ["w", "w", "", "t", "s", "", "", "", "s", "", "", "", "", "", "w", "", "", "", "w", "t", "t", "", "", "w"],
+    ["w", "", "", "", "s", "s", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "t", "w"],
+    ["w", "", "", "w", "w", "w", "", "", "", "", "", "", "", "t", "t", "", "", "", "", "", "", "t", "", "w"],
+    ["w", "s", "", "", "", "", "", "", "", "", "", "", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
+    ["w", "", "t", "t", "", "", "", "t", "", "", "", "s", "s", "", "", "", "", "", "", "", "w", "", "", "w"],
+    ["w", "", "", "", "", "", "w", "", "", "", "s", "s", "", "", "", "", "t", "", "", "", "", "t", "s", "w"],
+    ["w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w", "w",
+     "w"]
+]
 
 
-def draw_grid(w, h, size):
-    for i in range(h // size):
-        for j in range(w // size):
-            pg.draw.rect(screen, color=square_color,
-                         rect=[size * j, size * i, size, size], width=1)
+class UnrailedGame:
 
+    collected_trees = 0
+    collected_steel = 0
+    collected_rails = 0
+    screen_width = 600
+    screen_height = 500
+    game_over = False
+    square_color = 'grey'
+    bgclr = (255, 255, 255)
 
-def get_entities_sprites(entities: []):
-    sprt = []
-    for i in entities:
-        sprt.append(i.sprite)
-    return sprt
+    p0 = None
+    p1 = None
+    rail = None
+    train = None
+    station = None
+    screen = None
 
+    rail_list = []
+    used_rail_list = []
+    walls_list = []
 
-def draw_game_info():
-    msg = 'trees: ' + str(collected_trees)
-    msg += '   steel: ' + str(collected_steel)
-    msg += '   rails: ' + str(collected_rails)
-    msg1 = 'train speed: '
-    if pg.time.get_ticks() < train.start_delay:
-        msg += '    train departs in: ' + str((train.start_delay - pg.time.get_ticks()) // 1000)
-        msg1 += '0'
-    else:
-        msg1 += str(train.speed)
-    info_text = text_font.render(msg, True, 'black')
-    screen.blit(info_text, [10, screen.get_height() - info_panel_height * 9 / 10])
-    info_text = text_font.render(msg1, True, 'black')
-    screen.blit(info_text, [10, screen.get_height() - info_panel_height * 6 / 10])
+    trees_list = []
+    trees_list_sprites = []
 
+    steel_list = []
+    steel_list_sprites = []
 
-pg.init()
+    MAP_WALLS = []
+    MAP_STEEL = []
+    MAP_TREES = []
+    MAP_PLAYER0 = []
+    MAP_PLAYER1 = []
+    MAP_TRAIN = []
+    MAP_STATION = []
+    MAP_RAILS = []
 
-info_panel_height = 100
-screen = pg.display.set_mode(size=[600, 500])
-pl_dir_pics = [pg.image.load('Assets/player_left.png').convert_alpha(), pg.image.load(
-    'Assets/player_right.png').convert_alpha(),
-               pg.image.load('Assets/player_up.png').convert_alpha(), pg.image.load(
-        'Assets/player_down.png').convert_alpha()]
-bgclr = (255, 255, 255)
-square_size = 20
-square_color = 'grey'
-game_over = False
-pl_x = 30
-pl_y = 30
-tick_amount = 30
-collected_trees = 0
-collected_steel = 0
-collected_rails = 0
-trees_needed = 1
-steel_needed = 1
+    def __init__(self, delta_time=30, trees_needed=1, steel_needed=1, square_size=20, info_panel_height=100):
+        self.tick_amount = delta_time
+        self.trees_needed = trees_needed
+        self.steel_needed = steel_needed
+        self.square_size = square_size
+        self.info_panel_height = info_panel_height
 
-pl = spr.player(pl_x, pl_y, 'Assets/player_up.png', square_size, square_size)
-train = ent.train(50, 50, square_size, 'Assets/train.png')
-station = spr.sprite(250, 50, 'Assets/station.png')
+        pg.init()
+        self.generate_map_from_template(MAP)
+        self.rails = pg.sprite.Group(self.rail_list)
+        self.used_rail_list.append(self.rail)
+        self.used_rails = pg.sprite.Group(self.used_rail_list)
+        self.walls = pg.sprite.Group(self.walls_list)
+        self.trees = pg.sprite.Group(self.trees_list_sprites)
+        self.steel = pg.sprite.Group(self.steel_list_sprites)
+        self.dsp = pg.display
+        self.clock = pg.time.Clock()
+        self.screen.fill(self.bgclr)
+        self.draw_grid(self.screen_width, (self.screen_height - self.info_panel_height), self.square_size)
+        self.screen.blit(self.p0.image, self.p0.rect)
+        self.screen.blit(self.p1.image, self.p1.rect)
+        self.screen.blit(self.train.sprite.image, self.train.sprite.rect)
+        self.dsp.update()
+        self.text_font = pg.font.SysFont("arial", 25)
+        self.render_game()
 
-rail_list = []
-rails = pg.sprite.Group(rail_list)
-used_rail_list = []
-rail = spr.sprite(50, 50, 'Assets/usedrail.png')
-used_rail_list.append(rail)
-used_rails = pg.sprite.Group(used_rail_list)
+    def render_game(self):
+        self.screen.fill(self.bgclr)
+        self.draw_grid(self.screen_width, (self.screen_height - self.info_panel_height), self.square_size)
+        # pg.draw.rect(self.screen, rect=pl.collider, color='green')
+        self.trees.draw(self.screen)
+        self.steel.draw(self.screen)
+        self.rails.draw(self.screen)
+        self.walls.draw(self.screen)
+        self.used_rails.draw(self.screen)
+        self.screen.blit(self.station.image, self.station.rect)
+        self.screen.blit(self.p0.image, self.p0.rect)
+        self.screen.blit(self.p1.image, self.p1.rect)
+        self.screen.blit(self.train.sprite.image, self.train.sprite.rect)
+        self.draw_game_info()
+        pg.display.update()
 
-wall_amount = 50
-walls_list = []
-for i in range(wall_amount):
-    walls_list.append(
-        spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
-                   random.randint(0, (
-                               screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                   'Assets/wall.png'))
-walls = pg.sprite.Group(walls_list)
+    def step(self):
+        if pg.time.get_ticks() > self.train.delay:
+            self.train.move_train(self.tick_amount, self.rail_list, self.used_rail_list, self.station)
+            if self.train.sprite.rect.collidelist(self.rail_list) == -1 and \
+                    self.train.sprite.rect.collidelist(self.used_rail_list) == -1:
+                print('game over')
+                self.game_over = True
+            if self.train.sprite.rect.collidelist(self.rail_list) != -1:
+                self.train.speed += self.train.speed * 0.1
+                ur = self.rail_list.pop(self.train.sprite.rect.collidelist(self.rail_list))
+                ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
+                self.used_rail_list.append(ur)
+                self.used_rails = pg.sprite.Group(self.used_rail_list)
+                self.rails = pg.sprite.Group(self.rail_list)
+            if self.train.sprite.rect.colliderect(self.station):
+                print('game won!')
+                self.game_over = True
+            # collide_trees = pl.collider.collidelist(self.trees_list_sprites)
+            # collide_steel = pl.collider.collidelist(self.steel_list_sprites)
+            # collide_train = pl.collider.colliderect(self.train.sprite)
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                self.game_over = True
+        self.clock.tick(self.tick_amount)
+        return self.game_over
 
-trees_amount = 50
-trees_list = []
-trees_list_sprites = []
-for i in range(trees_amount):
-    trees_list.append(
-        ent.Resource(spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
-                                random.randint(0, (
-                                        screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                                'Assets/tree.png'),
-                     10, 1))
-trees_list_sprites = get_entities_sprites(trees_list)
-trees = pg.sprite.Group(trees_list_sprites)
+    def run_game(self):
+        while not self.game_over:
+            self.step()
+            #     is_dir_key_pressed = False
+            #     if event.type == pg.KEYDOWN:
+            #         if event.key == pg.K_LEFT:
+            #             pl.pl_dir = pl.direction['left']
+            #             is_dir_key_pressed = True
+            #         elif event.key == pg.K_RIGHT:
+            #             pl.pl_dir = pl.direction['right']
+            #             is_dir_key_pressed = True
+            #         elif event.key == pg.K_UP:
+            #             pl.pl_dir = pl.direction['up']
+            #             is_dir_key_pressed = True
+            #         elif event.key == pg.K_DOWN:
+            #             pl.pl_dir = pl.direction['down']
+            #             is_dir_key_pressed = True
+            #         pl.set_dir()
+            #         collide_trees = pl.collider.collidelist(trees_list_sprites)
+            #         collide_steel = pl.collider.collidelist(steel_list_sprites)
+            #         collide_train = pl.collider.colliderect(self.train.sprite)
+            #         collide_station = pl.collider.colliderect(self.station)
+            #         collide_walls = pl.collider.collidelist(self.walls_list)
+            #         if collide_trees == -1 and collide_steel == -1 and not collide_train \
+            #                 and not collide_station and collide_walls == -1:
+            #             if is_dir_key_pressed:
+            #                 pl.set_pos()
+            #         if event.key == pg.K_SPACE:
+            #             if pl.collider.collidelist(self.rail_list) == -1:
+            #                 if self.collected_rails >= 1 and collide_steel == -1 \
+            #                         and collide_trees == -1 and collide_walls == -1 \
+            #                         and pl.collider.collidelist(self.used_rail_list) == -1:
+            #                     self.collected_rails -= 1
+            #                     rail = spr.sprite(pl.collider.x + self.square_size / 2,
+            #                     pl.collider.y + self.square_size / 2,
+            #                                       'Assets/rail.png')
+            #                     self.rail_list.append(rail)
+            #                     rails = pg.sprite.Group(self.rail_list)
+            #             else:
+            #                 self.collected_rails += 1
+            #                 self.rail_list.pop(pl.collider.collidelist(self.rail_list))
+            #                 rails = pg.sprite.Group(self.rail_list)
+            #
+            #         # чисто чтобы смотреть где коллайдер, потом удалить?
+            #         pl.set_dir()
+            # if collide_train:
+            #     if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
+            #         self.collected_trees -= self.trees_needed
+            #         self.collected_steel -= self.steel_needed
+            #         self.collected_rails += 1
+            # if collide_trees != -1:
+            #     if self.trees_list[collide_trees].damage():
+            #         self.collected_trees += self.trees_list[collide_trees].loot
+            #         self.trees_list.pop(collide_trees)
+            #         trees_list_sprites = self.get_entities_sprites(self.trees_list)
+            #         trees = pg.sprite.Group(trees_list_sprites)
+            # if collide_steel != -1:
+            #     if self.steel_list[collide_steel].damage():
+            #         self.collected_steel += self.steel_list[collide_steel].loot
+            #         self.steel_list.pop(collide_steel)
+            #         steel_list_sprites = self.get_entities_sprites(self.steel_list)
+            #         steel = pg.sprite.Group(steel_list_sprites)
 
-steel_amount = 50
-steel_list = []
-steel_list_sprites = []
-for i in range(steel_amount):
-    steel_list.append(
-        ent.Resource(spr.sprite(random.randint(0, screen.get_width() / square_size) * square_size - square_size / 2,
-                                random.randint(0, (
-                                        screen.get_height() - info_panel_height) / square_size) * square_size - square_size / 2,
-                                'Assets/steel.png'),
-                     10, 1))
-steel_list_sprites = get_entities_sprites(steel_list)
-steel = pg.sprite.Group(steel_list_sprites)
+            self.render_game()
 
-dsp = pg.display
-clock = pg.time.Clock()
-screen.fill(bgclr)
-text_font = pg.font.SysFont("bahnschrift", 25)
+        self.dsp.quit()
 
-draw_grid(screen.get_width(), (screen.get_height() - info_panel_height), square_size)
+    def generate_map_random(self):
+        return
 
-screen.blit(pl.image, pl.rect)
-screen.blit(train.sprite.image, train.sprite.rect)
-dsp.update()
+    # optimize!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    def generate_map_from_template(self, map_template: [str, str]):
+        self.MAP_WALLS = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_STEEL = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_TREES = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_PLAYER0 = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_PLAYER1 = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_TRAIN = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_STATION = np.zeros((len(map_template), len(map_template[0])))
+        self.MAP_RAILS = np.zeros((len(map_template), len(map_template[0])))
 
-while not game_over:
-    if pg.time.get_ticks() > train.delay:
-        train.move_train(tick_amount, rail_list, used_rail_list, station)
-        if train.sprite.rect.collidelist(rail_list) == -1 and train.sprite.rect.collidelist(used_rail_list) == -1:
-            print('game over')
-            game_over = True
-        if train.sprite.rect.collidelist(rail_list) != -1:
-            train.speed += train.speed * 0.1
-            ur = rail_list.pop(train.sprite.rect.collidelist(rail_list))
-            ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
-            used_rail_list.append(ur)
-            used_rails = pg.sprite.Group(used_rail_list)
-            rails = pg.sprite.Group(rail_list)
-        if train.sprite.rect.colliderect(station):
-            print('game won!')
-            game_over = True
-    collide_trees = pl.collider.collidelist(trees_list_sprites)
-    collide_steel = pl.collider.collidelist(steel_list_sprites)
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            game_over = True
-        is_dir_key_pressed = False
-        if event.type == pg.KEYDOWN:
-            if event.key == pg.K_LEFT:
-                pl.pl_dir = pl.direction['left']
-                is_dir_key_pressed = True
-            elif event.key == pg.K_RIGHT:
-                pl.pl_dir = pl.direction['right']
-                is_dir_key_pressed = True
-            elif event.key == pg.K_UP:
-                pl.pl_dir = pl.direction['up']
-                is_dir_key_pressed = True
-            elif event.key == pg.K_DOWN:
-                pl.pl_dir = pl.direction['down']
-                is_dir_key_pressed = True
-            pl.set_dir()
-            collide_trees = pl.collider.collidelist(trees_list_sprites)
-            collide_steel = pl.collider.collidelist(steel_list_sprites)
-            collide_train = pl.collider.colliderect(train.sprite)
-            collide_station = pl.collider.colliderect(station)
-            collide_walls = pl.collider.collidelist(walls_list)
-            if collide_trees == -1 and collide_steel == -1 and not collide_train \
-                    and not collide_station and collide_walls == -1:
-                if is_dir_key_pressed:
-                    pl.set_pos()
-            if event.key == pg.K_SPACE:
-                if collide_train:
-                    if collected_trees >= trees_needed and collected_steel >= steel_needed:
-                        collected_trees -= trees_needed
-                        collected_steel -= steel_needed
-                        collected_rails += 1
-                elif pl.collider.collidelist(rail_list) == -1:
-                    if collected_rails >= 1 and collide_steel == -1 \
-                            and collide_trees == -1 and collide_walls == -1 \
-                            and pl.collider.collidelist(used_rail_list) == -1:
-                        collected_rails -= 1
-                        rail = spr.sprite(pl.collider.x + square_size / 2, pl.collider.y + square_size / 2,
-                                          'Assets/rail.png')
-                        rail_list.append(rail)
-                        rails = pg.sprite.Group(rail_list)
+        self.screen_width = len(map_template[0]) * self.square_size
+        self.screen_height = len(map_template) * self.square_size + self.info_panel_height
+        self.screen = pg.display.set_mode(size=[self.screen_width, self.screen_height])
+        for y in range(len(map_template)):
+            for x in range(len(map_template[y])):
+                if map_template[y][x] == "w":
+                    self.MAP_WALLS[y][x] = 1
+                    self.walls_list.append(
+                        spr.sprite(x * self.square_size + self.square_size / 2,
+                                   y * self.square_size + self.square_size / 2, 'Assets/wall.png'))
+                elif map_template[y][x] == "t":
+                    self.MAP_TREES[y][x] = 1
+                    self.trees_list.append(
+                        ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
+                                                y * self.square_size + self.square_size / 2, 'Assets/tree.png'), 10, 1))
+                    self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
+                elif map_template[y][x] == "s":
+                    self.MAP_STEEL[y][x] = 1
+                    self.steel_list.append(
+                        ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
+                                                y * self.square_size + self.square_size / 2, 'Assets/steel.png'), 10,
+                                     1))
+                    self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
+                elif map_template[y][x] == "p0":
+                    self.MAP_PLAYER0[y][x] = 1
+                    self.p0 = Player(self.square_size, self.square_size, self.p1, x, y, self.square_size)
+                elif map_template[y][x] == "p1":
+                    self.MAP_PLAYER1[y][x] = 1
+                    self.p1 = Player(self.square_size, self.square_size, self.p0, x, y, self.square_size)
+                elif map_template[y][x] == "S":
+                    self.MAP_STATION[y][x] = 1
+                    self.station = spr.sprite(x * self.square_size + self.square_size / 2,
+                                              y * self.square_size + self.square_size / 2, 'Assets/station.png')
+                elif map_template[y][x] == "T":
+                    self.MAP_TRAIN[y][x] = 1
+                    self.MAP_RAILS[y][x] = 1
+                    self.train = ent.train(x * self.square_size + self.square_size / 2,
+                                           y * self.square_size + self.square_size / 2, self.square_size,
+                                           'Assets/train.png')
+                    self.rail = spr.sprite(x * self.square_size + self.square_size / 2,
+                                           y * self.square_size + self.square_size / 2, 'Assets/usedrail.png')
                 else:
-                    collected_rails += 1
-                    rail_list.pop(pl.collider.collidelist(rail_list))
-                    rails = pg.sprite.Group(rail_list)
+                    continue
+        return
 
-            # чисто чтобы смотреть где коллайдер, потом удалить?
-            pl.set_dir()
-    if collide_trees != -1:
-        if trees_list[collide_trees].damage():
-            collected_trees += trees_list[collide_trees].loot
-            trees_list.pop(collide_trees)
-            trees_list_sprites = get_entities_sprites(trees_list)
-            trees = pg.sprite.Group(trees_list_sprites)
-    if collide_steel != -1:
-        if steel_list[collide_steel].damage():
-            collected_steel += steel_list[collide_steel].loot
-            steel_list.pop(collide_steel)
-            steel_list_sprites = get_entities_sprites(steel_list)
-            steel = pg.sprite.Group(steel_list_sprites)
+    def draw_grid(self, w, h, size):
+        """
+        draws black grid
+        Parameters
+        ----------
+        w
+            screen width in pixels
+        h
+            screen height in pixels
+        size: int
+            cell size in pixels
+        """
+        for i in range(h // size):
+            for j in range(w // size):
+                pg.draw.rect(self.screen, color=self.square_color,
+                             rect=[size * j, size * i, size, size], width=1)
 
-    screen.fill(bgclr)
-    draw_grid(screen.get_width(), (screen.get_height() - info_panel_height), square_size)
-    pg.draw.rect(screen, rect=pl.collider, color='green')
-    trees.draw(screen)
-    steel.draw(screen)
-    rails.draw(screen)
-    walls.draw(screen)
-    used_rails.draw(screen)
-    screen.blit(station.image, station.rect)
-    screen.blit(pl.image, pl.rect)
-    screen.blit(train.sprite.image, train.sprite.rect)
-    draw_game_info()
-    pg.display.update()
-    clock.tick(tick_amount)
+    @staticmethod
+    def get_entities_sprites(entities: []):
+        """
+        :returns:
+        array of sprites from entities
+        Parameters
+        ----------
+        entities:
+        array of entity type
+        """
+        sprt = []
+        for i in entities:
+            sprt.append(i.sprite)
+        return sprt
 
-dsp.quit()
+    def draw_game_info(self):
+        """
+        draws UI on the bottom of the game
+        """
+        msg = 'trees: ' + str(self.collected_trees)
+        msg += '   steel: ' + str(self.collected_steel)
+        msg += '   rails: ' + str(self.collected_rails)
+        msg1 = 'train speed: '
+        if pg.time.get_ticks() < self.train.start_delay:
+            msg += '    train departs in: ' + str((self.train.start_delay - pg.time.get_ticks()) // 1000)
+            msg1 += '0'
+        else:
+            msg1 += str(self.train.speed)
+        info_text = self.text_font.render(msg, True, 'black')
+        self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 9 / 10])
+        info_text = self.text_font.render(msg1, True, 'black')
+        self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 6 / 10])
