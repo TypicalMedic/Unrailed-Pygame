@@ -28,42 +28,43 @@ MAP = [
 
 class UnrailedGame:
 
-    collected_trees = 0
-    collected_steel = 0
-    collected_rails = 0
-    screen_width = 600
-    screen_height = 500
-    game_over = False
-    square_color = 'grey'
-    bgclr = (255, 255, 255)
-
-    p0 = None
-    p1 = None
-    rail = None
-    train = None
-    station = None
-    screen = None
-
-    rail_list = []
-    used_rail_list = []
-    walls_list = []
-
-    trees_list = []
-    trees_list_sprites = []
-
-    steel_list = []
-    steel_list_sprites = []
-
-    MAP_WALLS = []
-    MAP_STEEL = []
-    MAP_TREES = []
-    MAP_PLAYER0 = []
-    MAP_PLAYER1 = []
-    MAP_TRAIN = []
-    MAP_STATION = []
-    MAP_RAILS = []
-
     def __init__(self, delta_time=30, trees_needed=1, steel_needed=1, square_size=20, info_panel_height=100):
+
+        self.collected_trees = 0
+        self.collected_steel = 0
+        self.collected_rails = 10
+        self.screen_width = 600
+        self.screen_height = 500
+        self.game_over = False
+        self.square_color = 'grey'
+        self.bgclr = (255, 255, 255)
+
+        self.p0 = None
+        self.p1 = None
+        self.rail = None
+        self.train = None
+        self.station = None
+        self.screen = None
+
+        self.rail_list = []
+        self.used_rail_list = []
+        self.walls_list = []
+
+        self.trees_list = []
+        self.trees_list_sprites = []
+
+        self.steel_list = []
+        self.steel_list_sprites = []
+
+        self.MAP_WALLS = []
+        self.MAP_STEEL = []
+        self.MAP_TREES = []
+        self.MAP_PLAYER0 = []
+        self.MAP_PLAYER1 = []
+        self.MAP_TRAIN = []
+        self.MAP_STATION = []
+        self.MAP_RAILS = []
+
         self.tick_amount = delta_time
         self.trees_needed = trees_needed
         self.steel_needed = steel_needed
@@ -227,14 +228,12 @@ class UnrailedGame:
                     self.trees_list.append(
                         ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
                                                 y * self.square_size + self.square_size / 2, 'Assets/tree.png'), 10, 1))
-                    self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
                 elif map_template[y][x] == "s":
                     self.MAP_STEEL[y][x] = 1
                     self.steel_list.append(
                         ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
                                                 y * self.square_size + self.square_size / 2, 'Assets/steel.png'), 10,
                                      1))
-                    self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
                 elif map_template[y][x] == "p0":
                     self.MAP_PLAYER0[y][x] = 1
                     self.p0 = Player(self.square_size, self.square_size, self.p1, x, y, self.square_size)
@@ -255,6 +254,8 @@ class UnrailedGame:
                                            y * self.square_size + self.square_size / 2, 'Assets/usedrail.png')
                 else:
                     continue
+        self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
+        self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
         return
 
     def draw_grid(self, w, h, size):
@@ -306,3 +307,61 @@ class UnrailedGame:
         self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 9 / 10])
         info_text = self.text_font.render(msg1, True, 'black')
         self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 6 / 10])
+
+    def env_action_update(self, action, player: Player):
+        interact = False
+        if action == 0:
+            player.pl_dir = player.direction['left']
+        elif action == 1:
+            player.pl_dir = player.direction['right']
+        elif action == 2:
+            player.pl_dir = player.direction['up']
+        elif action == 3:
+            player.pl_dir = player.direction['down']
+        elif action == 4:
+            pass
+        elif action == 5:
+            interact = True
+        player.set_dir()
+        collide_trees = player.collider.collidelist(self.trees_list_sprites)
+        collide_steel = player.collider.collidelist(self.steel_list_sprites)
+        collide_train = player.collider.colliderect(self.train.sprite)
+        collide_station = player.collider.colliderect(self.station)
+        collide_walls = player.collider.collidelist(self.walls_list)
+        if collide_trees == -1 and collide_steel == -1 and not collide_train \
+                and not collide_station and collide_walls == -1:
+            if 0 <= action < 4:
+                player.set_pos()
+        if interact:
+            if player.collider.collidelist(self.rail_list) == -1:
+                if self.collected_rails >= 1 and collide_steel == -1 \
+                        and collide_trees == -1 and collide_walls == -1 \
+                        and player.collider.collidelist(self.used_rail_list) == -1:
+                    self.collected_rails -= 1
+                    rail = spr.sprite(player.collider.x + self.square_size / 2,
+                                      player.collider.y + self.square_size / 2,
+                                      'Assets/rail.png')
+                    self.rail_list.append(rail)
+                    self.rails = pg.sprite.Group(self.rail_list)
+            else:
+                self.collected_rails += 1
+                self.rail_list.pop(player.collider.collidelist(self.rail_list))
+                self.rails = pg.sprite.Group(self.rail_list)
+
+        if collide_train:
+            if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
+                self.collected_trees -= self.trees_needed
+                self.collected_steel -= self.steel_needed
+                self.collected_rails += 1
+        if collide_trees != -1:
+            if self.trees_list[collide_trees].damage():
+                self.collected_trees += self.trees_list[collide_trees].loot
+                self.trees_list.pop(collide_trees)
+                self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
+                self.trees = pg.sprite.Group(self.trees_list_sprites)
+        if collide_steel != -1:
+            if self.steel_list[collide_steel].damage():
+                self.collected_steel += self.steel_list[collide_steel].loot
+                self.steel_list.pop(collide_steel)
+                self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
+                self.steel = pg.sprite.Group(self.steel_list_sprites)

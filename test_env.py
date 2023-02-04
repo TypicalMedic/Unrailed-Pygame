@@ -4,7 +4,7 @@ from pettingzoo.test import test_save_obs
 import gymnasium as gym
 
 
-cycles = 1000
+cycles = 100000
 env = unrailed_env.env("human", max_cycles=cycles)
 
 env.reset()
