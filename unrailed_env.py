@@ -255,9 +255,9 @@ class raw_env(AECEnv):
 
         # selects the next agent.
         self.agent_selection = self._agent_selector.next()
-        if agent == "player_0":
+        if agent == "player_0" and not self.GAME.rail_path_completed:
             self.GAME.env_action_update(action, self.GAME.p0)
-        elif agent == "player_1":
+        elif agent == "player_1" and not self.GAME.rail_path_completed:
             self.GAME.env_action_update(action, self.GAME.p1)
         # Adds .rewards to ._cumulative_rewards
         self._accumulate_rewards()

@@ -400,20 +400,61 @@ class UnrailedGame:
             if 0 <= action < 4:
                 player.set_pos()
         if interact:
-            if player.collider.collidelist(self.rail_list) == -1:
+            if self.p0.collider.collidelist(self.rail_list) != -1:
+                self.collected_rails += 1
+                self.rail_list.pop(self.p0.collider.collidelist(self.rail_list))
+                self.rails = pg.sprite.Group(self.rail_list)
+            elif self.p0.collider.collidelist(self.rail_path) != -1:
+                if self.p0.collider.collidelist(self.rail_path) == len(self.rail_path) - 1:
+                    self.collected_rails += 1
+                    self.rail_path.pop(self.p0.collider.collidelist(self.rail_path))
+                    self.rail_paths = pg.sprite.Group(self.rail_path)
+
+                    if len(self.rail_path) == 0:
+                        x = self.used_rail_list[-1].rect.x
+                        y = self.used_rail_list[-1].rect.y
+                    else:
+                        x = self.rail_path[-1].rect.x
+                        y = self.rail_path[-1].rect.y
+                    self.last_rail_colliders = [
+                        pg.rect.Rect(x, y - self.square_size, self.square_size, self.square_size),  # up
+                        pg.rect.Rect(x, y + self.square_size, self.square_size, self.square_size),  # down
+                        pg.rect.Rect(x - self.square_size, y, self.square_size, self.square_size),  # left
+                        pg.rect.Rect(x + self.square_size, y, self.square_size, self.square_size)]  # right
+            else:
                 if self.collected_rails >= 1 and collide_steel == -1 \
                         and collide_trees == -1 and collide_walls == -1 \
-                        and player.collider.collidelist(self.used_rail_list) == -1:
+                        and self.p0.collider.collidelist(self.used_rail_list) == -1:
                     self.collected_rails -= 1
-                    rail = spr.sprite(player.collider.x + self.square_size / 2,
-                                      player.collider.y + self.square_size / 2,
+                    rail = spr.sprite(self.p0.collider.x + self.square_size / 2,
+                                      self.p0.collider.y + self.square_size / 2,
                                       'Assets/rail.png')
                     self.rail_list.append(rail)
                     self.rails = pg.sprite.Group(self.rail_list)
-            else:
-                self.collected_rails += 1
-                self.rail_list.pop(player.collider.collidelist(self.rail_list))
-                self.rails = pg.sprite.Group(self.rail_list)
+
+                    clear = False
+                    while not clear:
+                        clear = True
+                        for col in self.last_rail_colliders:
+                            if col.collidelist(self.rail_list) != -1:
+                                clear = False
+                                x = self.rail_list[col.collidelist(self.rail_list)].rect.x
+                                y = self.rail_list[col.collidelist(self.rail_list)].rect.y
+                                self.last_rail_colliders = [
+                                    pg.rect.Rect(x, y - self.square_size, self.square_size, self.square_size),  # up
+                                    pg.rect.Rect(x, y + self.square_size, self.square_size, self.square_size),  # down
+                                    pg.rect.Rect(x - self.square_size, y, self.square_size, self.square_size),  # left
+                                    pg.rect.Rect(x + self.square_size, y, self.square_size, self.square_size)]  # right
+                                self.rail_path.append(self.rail_list.pop(col.collidelist(self.rail_list)))
+                                self.rail_path[-1].image = pg.image.load("Assets/rail_path.png").convert_alpha()
+                                self.rail_paths = pg.sprite.Group(self.rail_path)
+                                self.rails = pg.sprite.Group(self.rail_list)
+                                break
+                            elif col.colliderect(self.station):
+                                self.train.speed *= 1000
+                                self.rail_path_completed = True
+                                for r in self.rail_path:
+                                    r.image = pg.image.load('Assets/usedrail.png').convert_alpha()
 
         if collide_train:
             if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:

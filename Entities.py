@@ -36,18 +36,17 @@ class train:
         }
         self.tr_dir = self.direction['right']
 
-    def move_train(self, time_tick, rail_list, used_rail, station):
-        dir_shuffle = [(0, 'up'), (1, 'down'), (2, 'left'), (3, 'right')]
-        random.shuffle(dir_shuffle)
-        for i in range(len(dir_shuffle)):
-            if self.colliders[dir_shuffle[i][0]].collidelist(rail_list) != -1 and \
+    def move_train(self, time_tick, path_rail, used_rail, station):
+        dirs = ['up', 'down', 'left', 'right']
+        for i in range(len(dirs)):
+            if len(path_rail) > 0 and self.colliders[i].colliderect(path_rail[0]) and \
                     self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dir_shuffle[i][1]]
+                self.tr_dir = self.direction[dirs[i]]
                 break
-        for i in range(len(dir_shuffle)):
-            if self.colliders[dir_shuffle[i][0]].colliderect(station) and \
+        for i in range(len(dirs)):
+            if self.colliders[i].colliderect(station) and \
                     self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dir_shuffle[i][1]]
+                self.tr_dir = self.direction[dirs[i]]
                 break
 
         self.sprite.rect.x += self.tr_dir['dir'][0]
