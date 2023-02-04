@@ -376,6 +376,8 @@ class UnrailedGame:
         self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 6 / 10])
 
     def env_action_update(self, action, player: Player):
+        if action is None:
+            return
         interact = False
         if action == 0:
             player.pl_dir = player.direction['left']

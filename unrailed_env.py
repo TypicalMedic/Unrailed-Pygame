@@ -116,10 +116,6 @@ class raw_env(AECEnv):
             agent: Box(self.low, self.high, shape=(3,)) for agent in self.possible_agents
         }
 
-        print( MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-                                       [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-                                       [len(self.GAME.MAP_WALLS)], [1], [1], [1]]).sample())
-
         self.render_mode = render_mode
 
     # this cache ensures that same space object is returned for the same agent
@@ -191,6 +187,8 @@ class raw_env(AECEnv):
         or any other environment data which should not be kept around after the
         user is no longer using the environment.
         """
+
+        self.GAME.dsp.quit()
         pass
 
     def reward(self):
@@ -267,7 +265,7 @@ class raw_env(AECEnv):
 
         if self.terminate:
             reward = 0
-            self.close()
+            # self.close()  # ??????????????????????????????????????????????????????????????????????????????????
         if not self.terminate:
             self.num_frames += 1
             reward = 0
