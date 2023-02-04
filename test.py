@@ -1,4 +1,4 @@
 import game
 
 g = game.UnrailedGame()
-g.run_game()
+g.run_game_singleplayer()

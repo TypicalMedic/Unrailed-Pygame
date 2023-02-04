@@ -47,6 +47,7 @@ class UnrailedGame:
         self.screen = None
 
         self.rail_list = []
+        self.rail_path = []
         self.used_rail_list = []
         self.walls_list = []
 
@@ -132,68 +133,74 @@ class UnrailedGame:
         self.clock.tick(self.tick_amount)
         return self.game_over
 
-    def run_game(self):
+    def run_game_singleplayer(self):
         while not self.game_over:
             self.step()
-            #     is_dir_key_pressed = False
-            #     if event.type == pg.KEYDOWN:
-            #         if event.key == pg.K_LEFT:
-            #             pl.pl_dir = pl.direction['left']
-            #             is_dir_key_pressed = True
-            #         elif event.key == pg.K_RIGHT:
-            #             pl.pl_dir = pl.direction['right']
-            #             is_dir_key_pressed = True
-            #         elif event.key == pg.K_UP:
-            #             pl.pl_dir = pl.direction['up']
-            #             is_dir_key_pressed = True
-            #         elif event.key == pg.K_DOWN:
-            #             pl.pl_dir = pl.direction['down']
-            #             is_dir_key_pressed = True
-            #         pl.set_dir()
-            #         collide_trees = pl.collider.collidelist(trees_list_sprites)
-            #         collide_steel = pl.collider.collidelist(steel_list_sprites)
-            #         collide_train = pl.collider.colliderect(self.train.sprite)
-            #         collide_station = pl.collider.colliderect(self.station)
-            #         collide_walls = pl.collider.collidelist(self.walls_list)
-            #         if collide_trees == -1 and collide_steel == -1 and not collide_train \
-            #                 and not collide_station and collide_walls == -1:
-            #             if is_dir_key_pressed:
-            #                 pl.set_pos()
-            #         if event.key == pg.K_SPACE:
-            #             if pl.collider.collidelist(self.rail_list) == -1:
-            #                 if self.collected_rails >= 1 and collide_steel == -1 \
-            #                         and collide_trees == -1 and collide_walls == -1 \
-            #                         and pl.collider.collidelist(self.used_rail_list) == -1:
-            #                     self.collected_rails -= 1
-            #                     rail = spr.sprite(pl.collider.x + self.square_size / 2,
-            #                     pl.collider.y + self.square_size / 2,
-            #                                       'Assets/rail.png')
-            #                     self.rail_list.append(rail)
-            #                     rails = pg.sprite.Group(self.rail_list)
-            #             else:
-            #                 self.collected_rails += 1
-            #                 self.rail_list.pop(pl.collider.collidelist(self.rail_list))
-            #                 rails = pg.sprite.Group(self.rail_list)
-            #
-            #         # чисто чтобы смотреть где коллайдер, потом удалить?
-            #         pl.set_dir()
-            # if collide_train:
-            #     if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
-            #         self.collected_trees -= self.trees_needed
-            #         self.collected_steel -= self.steel_needed
-            #         self.collected_rails += 1
-            # if collide_trees != -1:
-            #     if self.trees_list[collide_trees].damage():
-            #         self.collected_trees += self.trees_list[collide_trees].loot
-            #         self.trees_list.pop(collide_trees)
-            #         trees_list_sprites = self.get_entities_sprites(self.trees_list)
-            #         trees = pg.sprite.Group(trees_list_sprites)
-            # if collide_steel != -1:
-            #     if self.steel_list[collide_steel].damage():
-            #         self.collected_steel += self.steel_list[collide_steel].loot
-            #         self.steel_list.pop(collide_steel)
-            #         steel_list_sprites = self.get_entities_sprites(self.steel_list)
-            #         steel = pg.sprite.Group(steel_list_sprites)
+            is_dir_key_pressed = False
+            collide_trees = self.p0.collider.collidelist(self.trees_list_sprites)
+            collide_steel = self.p0.collider.collidelist(self.steel_list_sprites)
+            collide_train = self.p0.collider.colliderect(self.train.sprite)
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    self.game_over = True
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_LEFT:
+                        self.p0.pl_dir = self.p0.direction['left']
+                        is_dir_key_pressed = True
+                    elif event.key == pg.K_RIGHT:
+                        self.p0.pl_dir = self.p0.direction['right']
+                        is_dir_key_pressed = True
+                    elif event.key == pg.K_UP:
+                        self.p0.pl_dir = self.p0.direction['up']
+                        is_dir_key_pressed = True
+                    elif event.key == pg.K_DOWN:
+                        self.p0.pl_dir = self.p0.direction['down']
+                        is_dir_key_pressed = True
+                    self.p0.set_dir()
+                    collide_trees = self.p0.collider.collidelist(self.trees_list_sprites)
+                    collide_steel = self.p0.collider.collidelist(self.steel_list_sprites)
+                    collide_train = self.p0.collider.colliderect(self.train.sprite)
+                    collide_station = self.p0.collider.colliderect(self.station)
+                    collide_walls = self.p0.collider.collidelist(self.walls_list)
+                    if collide_trees == -1 and collide_steel == -1 and not collide_train \
+                            and not collide_station and collide_walls == -1:
+                        if is_dir_key_pressed:
+                            self.p0.set_pos()
+                    if event.key == pg.K_SPACE:
+                        if self.p0.collider.collidelist(self.rail_list) == -1:
+                            if self.collected_rails >= 1 and collide_steel == -1 \
+                                    and collide_trees == -1 and collide_walls == -1 \
+                                    and self.p0.collider.collidelist(self.used_rail_list) == -1:
+                                self.collected_rails -= 1
+                                rail = spr.sprite(self.p0.collider.x + self.square_size / 2,
+                                self.p0.collider.y + self.square_size / 2,
+                                                  'Assets/rail.png')
+                                self.rail_list.append(rail)
+                                self.rails = pg.sprite.Group(self.rail_list)
+                        else:
+                            self.collected_rails += 1
+                            self.rail_list.pop(self.p0.collider.collidelist(self.rail_list))
+                            self.rails = pg.sprite.Group(self.rail_list)
+
+                    # чисто чтобы смотреть где коллайдер, потом удалить?
+                    self.p0.set_dir()
+            if collide_train:
+                if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
+                    self.collected_trees -= self.trees_needed
+                    self.collected_steel -= self.steel_needed
+                    self.collected_rails += 1
+            if collide_trees != -1:
+                if self.trees_list[collide_trees].damage():
+                    self.collected_trees += self.trees_list[collide_trees].loot
+                    self.trees_list.pop(collide_trees)
+                    self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
+                    self.trees = pg.sprite.Group(self.trees_list_sprites)
+            if collide_steel != -1:
+                if self.steel_list[collide_steel].damage():
+                    self.collected_steel += self.steel_list[collide_steel].loot
+                    self.steel_list.pop(collide_steel)
+                    self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
+                    self.steel = pg.sprite.Group(self.steel_list_sprites)
 
             self.render_game()
 
