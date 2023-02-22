@@ -68,4 +68,6 @@ class Player(spr.sprite):
     """
     def set_pos(self):
         self.rect.x += self.pl_dir['dir'][0] * self.move_delta
+        self.x += self.pl_dir['dir'][0]
         self.rect.y += self.pl_dir['dir'][1] * self.move_delta
+        self.y += self.pl_dir['dir'][1]

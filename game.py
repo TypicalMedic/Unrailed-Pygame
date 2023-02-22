@@ -375,7 +375,7 @@ class UnrailedGame:
         info_text = self.text_font.render(msg1, True, 'black')
         self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 6 / 10])
 
-    def env_action_update(self, action, player: Player):
+    def env_action_update(self, action, player: Player, map_pl):
         if action is None:
             return
         interact = False
@@ -400,16 +400,19 @@ class UnrailedGame:
         if collide_trees == -1 and collide_steel == -1 and not collide_train \
                 and not collide_station and collide_walls == -1:
             if 0 <= action < 4:
+                map_pl[player.y][player.x] = 0
                 player.set_pos()
+                map_pl[player.y][player.x] = 1
+
         if interact:
-            if self.p0.collider.collidelist(self.rail_list) != -1:
+            if player.collider.collidelist(self.rail_list) != -1:
                 self.collected_rails += 1
-                self.rail_list.pop(self.p0.collider.collidelist(self.rail_list))
+                self.rail_list.pop(player.collider.collidelist(self.rail_list))
                 self.rails = pg.sprite.Group(self.rail_list)
-            elif self.p0.collider.collidelist(self.rail_path) != -1:
-                if self.p0.collider.collidelist(self.rail_path) == len(self.rail_path) - 1:
+            elif player.collider.collidelist(self.rail_path) != -1:
+                if player.collider.collidelist(self.rail_path) == len(self.rail_path) - 1:
                     self.collected_rails += 1
-                    self.rail_path.pop(self.p0.collider.collidelist(self.rail_path))
+                    self.rail_path.pop(player.collider.collidelist(self.rail_path))
                     self.rail_paths = pg.sprite.Group(self.rail_path)
 
                     if len(self.rail_path) == 0:
@@ -428,8 +431,8 @@ class UnrailedGame:
                         and collide_trees == -1 and collide_walls == -1 \
                         and self.p0.collider.collidelist(self.used_rail_list) == -1:
                     self.collected_rails -= 1
-                    rail = spr.sprite(self.p0.collider.x + self.square_size / 2,
-                                      self.p0.collider.y + self.square_size / 2,
+                    rail = spr.sprite(player.collider.x + self.square_size / 2,
+                                      player.collider.y + self.square_size / 2,
                                       'Assets/rail.png')
                     self.rail_list.append(rail)
                     self.rails = pg.sprite.Group(self.rail_list)
