@@ -110,6 +110,14 @@ class raw_env(AECEnv):
         # define what actions and how many of them are possible
         self._action_spaces = {agent: Discrete(6) for agent in self.possible_agents}
         # define what we want to observe
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # self.observation_space = spaces.Dict(
+        #     {
+        #         "agent": spaces.Box(0, size - 1, shape=(2,), dtype=int),
+        #         "target": spaces.Box(0, size - 1, shape=(2,), dtype=int),
+        #     }
+        # )
+
         self._observation_spaces = {
             # agent: MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
             #                            [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
@@ -173,8 +181,8 @@ class raw_env(AECEnv):
             steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
             trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
             ally = self.GAME.MAP_PLAYER1[y_low:y_high, x_low:x_high]
-            train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
-            station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
+            train = self.GAME.MAP_TRAIN     # [y_low:y_high, x_low:x_high]
+            station = self.GAME.MAP_STATION     # [y_low:y_high, x_low:x_high]
             rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]
 
             # observation of one agent is the surrounding box with info about ... ?
@@ -221,9 +229,6 @@ class raw_env(AECEnv):
         self.GAME.dsp.quit()
         pass
 
-    def reward(self):
-        return 0
-
     def reset(self, seed=None, return_info=False, options=None):
         """
         Reset needs to initialize the following attributes
@@ -238,6 +243,7 @@ class raw_env(AECEnv):
         can be called without issues.
         Here it sets up the state dictionary which is used by step() and the observations dictionary which is used by step() and observe()
         """
+        self.GAME.dsp.quit()
         self.GAME = UnrailedGame()
 
         self.agents = self.possible_agents[:]
@@ -279,14 +285,17 @@ class raw_env(AECEnv):
         # elif agent == self.agents[1]:
         #     self.p1.update(self.area, action) # update player by action MAKE!!!
 
-        self.terminate = self.GAME.step()
+        reward = 0
+        self.terminate, reward = self.GAME.step()
 
         # selects the next agent.
         self.agent_selection = self._agent_selector.next()
         if agent == "player_0" and not self.GAME.rail_path_completed:
-            self.GAME.env_action_update(action, self.GAME.p0, self.GAME.MAP_PLAYER0)
+            reward += self.GAME.env_action_update(action, self.GAME.p0, self.GAME.MAP_PLAYER0)
+            self.rewards[agent] += reward
         elif agent == "player_1" and not self.GAME.rail_path_completed:
-            self.GAME.env_action_update(action, self.GAME.p1, self.GAME.MAP_PLAYER1)
+            reward += self.GAME.env_action_update(action, self.GAME.p1, self.GAME.MAP_PLAYER1)
+            self.rewards[agent] += reward
         # Adds .rewards to ._cumulative_rewards
         self._accumulate_rewards()
 
@@ -302,7 +311,7 @@ class raw_env(AECEnv):
             self.truncate = self.num_frames >= self.max_cycles
 
         for ag in self.agents:
-            self.rewards[ag] = 0
+            # self.rewards[ag] = 0
             self.terminations[ag] = self.terminate
             self.truncations[ag] = self.truncate
             self.infos[ag] = {}

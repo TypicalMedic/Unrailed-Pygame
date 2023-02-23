@@ -7,9 +7,10 @@ import Sprites
 class train:
     speed = 5
     delay = 10000
-    start_delay = delay
 
-    def __init__(self, x, y, col_size, filename):
+    def __init__(self, x, y, col_size, filename, delay_shift=0):
+        self.delay += delay_shift
+        self.start_delay = self.delay
         self.sprite = Sprites.sprite(x, y, filename)
         self.col_size = col_size
         self.colliders = [pg.rect.Rect(x - col_size * 0.5, y - col_size * 1.5, col_size, col_size),  # up
