@@ -55,14 +55,14 @@ steel_amount = 50
 # </editor-fold>
 
 
-def env(render_mode=None, max_cycles=900):
+def env(render_mode=None, max_cycles=900, observation_radius=2):
     """
     The env function often wraps the environment in wrappers by default.
     You can find full documentation for these methods
     elsewhere in the developer documentation.
     """
     internal_render_mode = render_mode if render_mode != "ansi" else "human"
-    env = raw_env(render_mode=internal_render_mode, max_cycles=max_cycles)
+    env = raw_env(render_mode=internal_render_mode, max_cycles=max_cycles, observation_radius=observation_radius)
     # This wrapper is only for environments which print results to the terminal
     if render_mode == "ansi":
         env = wrappers.CaptureStdoutWrapper(env)
@@ -84,7 +84,7 @@ class raw_env(AECEnv):
 
     metadata = {"render_modes": ["human"], "name": "UNRAILED!"}
 
-    def __init__(self, low=np.inf, high=np.inf, render_mode=None, max_cycles=900):
+    def __init__(self, low=np.inf, high=np.inf, render_mode=None, max_cycles=900, observation_radius=2):
         """
         The init method takes in environment arguments and
          should define the following attributes:
@@ -98,6 +98,7 @@ class raw_env(AECEnv):
         self.low = low
         self.high = high
         self.max_cycles = max_cycles
+        self.obs_radius = observation_radius
 
         self.possible_agents = ["player_" + str(r) for r in range(2)]
         # self.possible_agents = [self.GAME.p0, self.GAME.p1]     # -> agents = possible agents
@@ -159,26 +160,55 @@ class raw_env(AECEnv):
         should return a sane observation (though not necessarily the most up to date possible)
         at any time after reset() is called.
         """
+        obs_radius = self.obs_radius
         obs = []
         if agent == "player_0":
+            x = self.GAME.p0.x
+            y = self.GAME.p0.y
+            x_low = x-obs_radius
+            x_high = x+obs_radius+1
+            y_low = y-obs_radius
+            y_high = y+obs_radius+1
+            walls = self.GAME.MAP_WALLS[y_low:y_high, x_low:x_high]
+            steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
+            trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
+            ally = self.GAME.MAP_PLAYER1[y_low:y_high, x_low:x_high]
+            train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
+            station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
+            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]
+
             # observation of one agent is the surrounding box with info about ... ?
             # obs = [self.GAME.MAP_WALLS, self.GAME.MAP_STEEL, self.GAME.MAP_TREES,
             #        self.GAME.MAP_PLAYER1, self.GAME.MAP_TRAIN,
             #        self.GAME.MAP_STATION, self.GAME.MAP_RAILS,
             #        self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees]
-            obs = np.array([{"walls": self.GAME.MAP_WALLS, "steel": self.GAME.MAP_STEEL, "trees": self.GAME.MAP_TREES,
-                             "ally": self.GAME.MAP_PLAYER1, "train": self.GAME.MAP_TRAIN,
-                             "station": self.GAME.MAP_STATION, "rails": self.GAME.MAP_RAILS},
-                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees])
+            obs = np.array([{"walls": walls, "steel": steel, "trees": trees,
+                             "ally": ally, "train": train,
+                             "station": station, "rails": rails},
+                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees, x, y])
         elif agent == "player_1":
+            x = self.GAME.p1.x
+            y = self.GAME.p1.y
+            x_low = x-obs_radius
+            x_high = x+obs_radius+1
+            y_low = y-obs_radius
+            y_high = y+obs_radius+1
+            walls = self.GAME.MAP_WALLS[y_low:y_high, x_low:x_high]
+            steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
+            trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
+            ally = self.GAME.MAP_PLAYER0[y_low:y_high, x_low:x_high]
+            train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
+            station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
+            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]
+
             # obs = [self.GAME.MAP_WALLS, self.GAME.MAP_STEEL, self.GAME.MAP_TREES,
             #        self.GAME.MAP_PLAYER0, self.GAME.MAP_TRAIN,
             #        self.GAME.MAP_STATION, self.GAME.MAP_RAILS,
             #        self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees]
-            obs = np.array([{"walls": self.GAME.MAP_WALLS, "steel": self.GAME.MAP_STEEL, "trees": self.GAME.MAP_TREES,
-                             "ally": self.GAME.MAP_PLAYER0, "train": self.GAME.MAP_TRAIN,
-                             "station": self.GAME.MAP_STATION, "rails": self.GAME.MAP_RAILS},
-                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees])
+            obs = np.array([{"walls": walls, "steel": steel, "trees": trees,
+                             "ally": ally, "train": train,
+                             "station": station, "rails": rails},
+                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees, x, y])
         return obs
 
     def close(self):

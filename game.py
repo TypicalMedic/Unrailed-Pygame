@@ -11,7 +11,7 @@ MAP = [
     ["w", "", "", "", "", "", "", "", "", "t", "t", "", "", "w", "", "", "t", "", "", "", "", "t", "t", "w"],
     ["w", "t", "t", "t", "", "", "", "", "", "t", "t", "", "", "", "", "", "", "", "", "", "", "s", "s", "w"],
     ["w", "t", "t", "T", "", "", "", "w", "s", "", "", "", "", "t", "", "s", "", "", "", "", "s", "s", "s", "w"],
-    ["w", "", "", "p0", "p1", "", "", "s", "s", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
+    ["w", "", "p0", "", "p1", "", "", "s", "s", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
     ["w", "", "", "", "", "", "", "w", "", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
     ["w", "s", "", "", "", "", "", "", "t", "", "", "", "", "", "", "", "", "", "w", "w", "", "", "", "w"],
     ["w", "s", "s", "", "s", "", "", "", "s", "", "S", "", "", "", "w", "w", "", "", "w", "s", "t", "", "", "w"],
@@ -126,7 +126,13 @@ class UnrailedGame:
                 self.train.speed += self.train.speed * 0.1
                 ur = self.rail_path.pop(self.train.sprite.rect.collidelist(self.rail_path))
                 ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
+                x = self.used_rail_list[-1].rect.x // self.square_size
+                y = self.used_rail_list[-1].rect.y // self.square_size
+                self.MAP_TRAIN[y][x] = 0
                 self.used_rail_list.append(ur)
+                x = self.used_rail_list[-1].rect.x // self.square_size
+                y = self.used_rail_list[-1].rect.y // self.square_size
+                self.MAP_TRAIN[y][x] = 1
                 self.used_rails = pg.sprite.Group(self.used_rail_list)
                 self.rail_paths = pg.sprite.Group(self.rail_path)
             if self.train.sprite.rect.colliderect(self.station):
@@ -404,14 +410,18 @@ class UnrailedGame:
                 player.set_pos()
                 map_pl[player.y][player.x] = 1
 
+        x = player.collider.x // self.square_size
+        y = player.collider.y // self.square_size
         if interact:
             if player.collider.collidelist(self.rail_list) != -1:
                 self.collected_rails += 1
                 self.rail_list.pop(player.collider.collidelist(self.rail_list))
+                self.MAP_RAILS[y][x] = 0
                 self.rails = pg.sprite.Group(self.rail_list)
             elif player.collider.collidelist(self.rail_path) != -1:
                 if player.collider.collidelist(self.rail_path) == len(self.rail_path) - 1:
                     self.collected_rails += 1
+                    self.MAP_RAILS[y][x] = 0
                     self.rail_path.pop(player.collider.collidelist(self.rail_path))
                     self.rail_paths = pg.sprite.Group(self.rail_path)
 
@@ -431,6 +441,7 @@ class UnrailedGame:
                         and collide_trees == -1 and collide_walls == -1 \
                         and self.p0.collider.collidelist(self.used_rail_list) == -1:
                     self.collected_rails -= 1
+                    self.MAP_RAILS[y][x] = 1
                     rail = spr.sprite(player.collider.x + self.square_size / 2,
                                       player.collider.y + self.square_size / 2,
                                       'Assets/rail.png')
@@ -470,11 +481,13 @@ class UnrailedGame:
             if self.trees_list[collide_trees].damage():
                 self.collected_trees += self.trees_list[collide_trees].loot
                 self.trees_list.pop(collide_trees)
+                self.MAP_TREES[y][x] = 0
                 self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
                 self.trees = pg.sprite.Group(self.trees_list_sprites)
         if collide_steel != -1:
             if self.steel_list[collide_steel].damage():
                 self.collected_steel += self.steel_list[collide_steel].loot
                 self.steel_list.pop(collide_steel)
+                self.MAP_STEEL[y][x] = 0
                 self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
                 self.steel = pg.sprite.Group(self.steel_list_sprites)
