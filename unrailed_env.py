@@ -55,7 +55,7 @@ steel_amount = 50
 # </editor-fold>
 
 
-def env(render_mode=None, max_cycles=900, observation_radius=2):
+def env(render_mode=None, max_cycles=1e10, observation_radius=2):
     """
     The env function often wraps the environment in wrappers by default.
     You can find full documentation for these methods
@@ -64,13 +64,13 @@ def env(render_mode=None, max_cycles=900, observation_radius=2):
     internal_render_mode = render_mode if render_mode != "ansi" else "human"
     env = raw_env(render_mode=internal_render_mode, max_cycles=max_cycles, observation_radius=observation_radius)
     # This wrapper is only for environments which print results to the terminal
-    if render_mode == "ansi":
-        env = wrappers.CaptureStdoutWrapper(env)
-    # this wrapper helps error handling for discrete action spaces
-    env = wrappers.AssertOutOfBoundsWrapper(env)
-    # Provides a wide vareity of helpful user errors
-    # Strongly recommended
-    env = wrappers.OrderEnforcingWrapper(env)
+    # if render_mode == "ansi":
+    #     env = wrappers.CaptureStdoutWrapper(env)
+    # # this wrapper helps error handling for discrete action spaces
+    # env = wrappers.AssertOutOfBoundsWrapper(env)
+    # # Provides a wide vareity of helpful user errors
+    # # Strongly recommended
+    # env = wrappers.OrderEnforcingWrapper(env)
     return env
 
 
@@ -101,6 +101,8 @@ class raw_env(AECEnv):
         self.obs_radius = observation_radius
 
         self.possible_agents = ["player_" + str(r) for r in range(2)]
+        self.agents = self.possible_agents[:]
+        self.observations = {agent: 0 for agent in self.agents}  # empty obs
         # self.possible_agents = [self.GAME.p0, self.GAME.p1]     # -> agents = possible agents
         self.agent_name_mapping = dict(
             zip(self.possible_agents, list(range(len(self.possible_agents))))
@@ -122,7 +124,7 @@ class raw_env(AECEnv):
             # agent: MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
             #                            [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
             #                            [len(self.GAME.MAP_WALLS)], [1], [1], [1]]) for agent in self.possible_agents
-            agent: Box(self.low, self.high, shape=(3,)) for agent in self.possible_agents
+            agent: Box(self.low, self.high, shape=(62, )) for agent in self.possible_agents
         }
 
         self.render_mode = render_mode
@@ -135,7 +137,8 @@ class raw_env(AECEnv):
         # return MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
         #                                [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
         #                                [len(self.GAME.MAP_WALLS)],  [1], [1], [1]])
-        return Box(self.low, self.high, shape=(3,))
+        # return Box(self.low, self.high, shape=(3,))
+        return Box(self.low, self.high, shape=(62, ))
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
@@ -170,53 +173,209 @@ class raw_env(AECEnv):
         """
         obs_radius = self.obs_radius
         obs = []
+        # combined map contains walls, steel, trees, ally, train and station placement within observation radius
+        # each object type is indicated by unique number:
+        # 0 - nothing   4 - ally
+        # 1 - walls     5 - train
+        # 2 - steel     6 - station
+        # 3 - trees
+        # it is possible because by the game rules these objects cannot (or at least should not :) ) overlap
+        combined_map = np.zeros((obs_radius*2 + 1, obs_radius*2 + 1))
         if agent == "player_0":
+            # implement going out of bounds
             x = self.GAME.p0.x
             y = self.GAME.p0.y
-            x_low = x-obs_radius
-            x_high = x+obs_radius+1
-            y_low = y-obs_radius
-            y_high = y+obs_radius+1
+
+            add_left = 0
+            add_right = 0
+            add_up = 0
+            add_down = 0
+            if x - obs_radius >= 0:
+                x_low = x - obs_radius
+            else:
+                x_low = 0
+                add_left = abs(x - obs_radius)
+
+            if x + obs_radius < self.GAME.field_x:
+                x_high = x + obs_radius + 1
+            else:
+                x_high = self.GAME.field_x
+                add_right = x + obs_radius - x_high + 1
+
+            if y - obs_radius >= 0:
+                y_low = y - obs_radius
+            else:
+                y_low = 0
+                add_up = abs(y - obs_radius)
+
+            if y + obs_radius < self.GAME.field_y:
+                y_high = y + obs_radius + 1
+            else:
+                y_high = self.GAME.field_y
+                add_down = y + obs_radius - y_high + 1
+
             walls = self.GAME.MAP_WALLS[y_low:y_high, x_low:x_high]
             steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
             trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
             ally = self.GAME.MAP_PLAYER1[y_low:y_high, x_low:x_high]
-            train = self.GAME.MAP_TRAIN     # [y_low:y_high, x_low:x_high]
-            station = self.GAME.MAP_STATION     # [y_low:y_high, x_low:x_high]
-            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]
+            train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
+            station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
+
+            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]  # separately
+
+            communication = [0, 0, 0]
+            if ally.any():
+                communication = self.GAME.p1.comm
+                self.rewards[agent] += 10
+
+            if add_left != 0:
+                walls = np.insert(walls, 0, [[1] for i in range(add_left)], axis=1)
+                steel = np.insert(steel, 0, [[0] for i in range(add_left)], axis=1)
+                trees = np.insert(trees, 0, [[0] for i in range(add_left)], axis=1)
+                ally = np.insert(ally, 0, [[0] for i in range(add_left)], axis=1)
+                train = np.insert(train, 0, [[0] for i in range(add_left)], axis=1)
+                station = np.insert(station, 0, [[0] for i in range(add_left)], axis=1)
+                rails = np.insert(rails, 0, [[0] for i in range(add_left)], axis=1)
+            if add_right != 0:
+                walls = np.insert(walls, len(walls[0]), [[1] for i in range(add_right)], axis=1)
+                steel = np.insert(steel, len(steel[0]), [[0] for i in range(add_right)], axis=1)
+                trees = np.insert(trees, len(trees[0]), [[0] for i in range(add_right)], axis=1)
+                ally = np.insert(ally, len(ally[0]), [[0] for i in range(add_right)], axis=1)
+                train = np.insert(train, len(train[0]), [[0] for i in range(add_right)], axis=1)
+                station = np.insert(station, len(station[0]), [[0] for i in range(add_right)], axis=1)
+                rails = np.insert(rails, len(rails[0]), [[0] for i in range(add_right)], axis=1)
+            if add_up != 0:
+                walls = np.insert(walls, 0, [[1] for i in range(add_up)], axis=0)
+                steel = np.insert(steel, 0, [[0] for i in range(add_up)], axis=0)
+                trees = np.insert(trees, 0, [[0] for i in range(add_up)], axis=0)
+                ally = np.insert(ally, 0, [[0] for i in range(add_up)], axis=0)
+                train = np.insert(train, 0, [[0] for i in range(add_up)], axis=0)
+                station = np.insert(station, 0, [[0] for i in range(add_up)], axis=0)
+                rails = np.insert(rails, 0, [[0] for i in range(add_up)], axis=0)
+            if add_down != 0:
+                walls = np.insert(walls, len(walls), [[1] for i in range(add_down)], axis=0)
+                steel = np.insert(steel, len(steel), [[0] for i in range(add_down)], axis=0)
+                trees = np.insert(trees, len(trees), [[0] for i in range(add_down)], axis=0)
+                ally = np.insert(ally, len(ally), [[0] for i in range(add_down)], axis=0)
+                train = np.insert(train, len(train), [[0] for i in range(add_down)], axis=0)
+                station = np.insert(station, len(station), [[0] for i in range(add_down)], axis=0)
+                rails = np.insert(rails, len(rails), [[0] for i in range(add_down)], axis=0)
+
+            map_arr = [walls, steel, trees, ally, train, station]
+            for i in range(len(map_arr)):
+                combined_map += map_arr[i]*(i+1)
 
             # observation of one agent is the surrounding box with info about ... ?
-            # obs = [self.GAME.MAP_WALLS, self.GAME.MAP_STEEL, self.GAME.MAP_TREES,
-            #        self.GAME.MAP_PLAYER1, self.GAME.MAP_TRAIN,
-            #        self.GAME.MAP_STATION, self.GAME.MAP_RAILS,
-            #        self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees]
-            obs = np.array([{"walls": walls, "steel": steel, "trees": trees,
-                             "ally": ally, "train": train,
-                             "station": station, "rails": rails},
-                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees, x, y])
+            obs = combined_map.flatten()
+            obs = np.append(obs, rails.flatten())
+            obs = np.append(obs, [self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees])
+            obs = np.append(obs, [x, y])  # player coord
+            obs = np.append(obs, [self.GAME.train.x, self.GAME.train.y])  # train coord
+            obs = np.append(obs, [self.GAME.station_x, self.GAME.station_y])  # station coord
+            obs = np.append(obs, communication)   # communication
+            # obs = [combined_map.flatten(), rails.flatten(),
+            #        [self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees],
+            #        [x, y], [0, 0], [0, 0]]   # [0, 0], [0, 0]: add train and station coordinates and communcation also!!!
         elif agent == "player_1":
             x = self.GAME.p1.x
             y = self.GAME.p1.y
-            x_low = x-obs_radius
-            x_high = x+obs_radius+1
-            y_low = y-obs_radius
-            y_high = y+obs_radius+1
+
+            add_left = 0
+            add_right = 0
+            add_up = 0
+            add_down = 0
+            if x - obs_radius >= 0:
+                x_low = x - obs_radius
+            else:
+                x_low = 0
+                add_left = abs(x - obs_radius)
+
+            if x + obs_radius < self.GAME.field_x:
+                x_high = x + obs_radius + 1
+            else:
+                x_high = self.GAME.field_x
+                add_right = x + obs_radius - x_high + 1
+
+            if y - obs_radius >= 0:
+                y_low = y - obs_radius
+            else:
+                y_low = 0
+                add_up = abs(y - obs_radius)
+
+            if y + obs_radius < self.GAME.field_y:
+                y_high = y + obs_radius + 1
+            else:
+                y_high = self.GAME.field_y
+                add_down = y + obs_radius - y_high + 1
+
             walls = self.GAME.MAP_WALLS[y_low:y_high, x_low:x_high]
             steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
             trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
             ally = self.GAME.MAP_PLAYER0[y_low:y_high, x_low:x_high]
             train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
             station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
-            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]
+
+            rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]  # separately
+
+            communication = [0, 0, 0]
+            if ally.any():
+                communication = self.GAME.p0.comm
+                self.rewards[agent] += 10
+
+            if add_left != 0:
+                walls = np.insert(walls, 0, [[1] for i in range(add_left)], axis=1)
+                steel = np.insert(steel, 0, [[0] for i in range(add_left)], axis=1)
+                trees = np.insert(trees, 0, [[0] for i in range(add_left)], axis=1)
+                ally = np.insert(ally, 0, [[0] for i in range(add_left)], axis=1)
+                train = np.insert(train, 0, [[0] for i in range(add_left)], axis=1)
+                station = np.insert(station, 0, [[0] for i in range(add_left)], axis=1)
+                rails = np.insert(rails, 0, [[0] for i in range(add_left)], axis=1)
+            if add_right != 0:
+                walls = np.insert(walls, len(walls[0]), [[1] for i in range(add_right)], axis=1)
+                steel = np.insert(steel, len(steel[0]), [[0] for i in range(add_right)], axis=1)
+                trees = np.insert(trees, len(trees[0]), [[0] for i in range(add_right)], axis=1)
+                ally = np.insert(ally, len(ally[0]), [[0] for i in range(add_right)], axis=1)
+                train = np.insert(train, len(train[0]), [[0] for i in range(add_right)], axis=1)
+                station = np.insert(station, len(station[0]), [[0] for i in range(add_right)], axis=1)
+                rails = np.insert(rails, len(rails[0]), [[0] for i in range(add_right)], axis=1)
+            if add_up != 0:
+                walls = np.insert(walls, 0, [[1] for i in range(add_up)], axis=0)
+                steel = np.insert(steel, 0, [[0] for i in range(add_up)], axis=0)
+                trees = np.insert(trees, 0, [[0] for i in range(add_up)], axis=0)
+                ally = np.insert(ally, 0, [[0] for i in range(add_up)], axis=0)
+                train = np.insert(train, 0, [[0] for i in range(add_up)], axis=0)
+                station = np.insert(station, 0, [[0] for i in range(add_up)], axis=0)
+                rails = np.insert(rails, 0, [[0] for i in range(add_up)], axis=0)
+            if add_down != 0:
+                walls = np.insert(walls, len(walls), [[1] for i in range(add_down)], axis=0)
+                steel = np.insert(steel, len(steel), [[0] for i in range(add_down)], axis=0)
+                trees = np.insert(trees, len(trees), [[0] for i in range(add_down)], axis=0)
+                ally = np.insert(ally, len(ally), [[0] for i in range(add_down)], axis=0)
+                train = np.insert(train, len(train), [[0] for i in range(add_down)], axis=0)
+                station = np.insert(station, len(station), [[0] for i in range(add_down)], axis=0)
+                rails = np.insert(rails, len(rails), [[0] for i in range(add_down)], axis=0)
+
+            map_arr = [walls, steel, trees, ally, train, station]
+            for i in range(len(map_arr)):
+                combined_map += map_arr[i]*(i+1)
+
+            # observation of one agent is the surrounding box with info about ... ?
+            obs = combined_map.flatten()
+            obs = np.append(obs, rails.flatten())
+            obs = np.append(obs, [self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees])
+            obs = np.append(obs, [x, y])  # player coord
+            obs = np.append(obs, [self.GAME.train.x, self.GAME.train.y])  # train coord
+            obs = np.append(obs, [self.GAME.station_x, self.GAME.station_y])  # station coord
+            obs = np.append(obs, communication)   # communication
 
             # obs = [self.GAME.MAP_WALLS, self.GAME.MAP_STEEL, self.GAME.MAP_TREES,
             #        self.GAME.MAP_PLAYER0, self.GAME.MAP_TRAIN,
             #        self.GAME.MAP_STATION, self.GAME.MAP_RAILS,
             #        self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees]
-            obs = np.array([{"walls": walls, "steel": steel, "trees": trees,
-                             "ally": ally, "train": train,
-                             "station": station, "rails": rails},
-                            self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees, x, y])
+            # obs = np.array([{"walls": walls, "steel": steel, "trees": trees,
+            #                  "ally": ally, "train": train,
+            #                  "station": station, "rails": rails},
+            #                 self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees, x, y])
         return obs
 
     def close(self):
@@ -263,6 +422,8 @@ class raw_env(AECEnv):
         self.agent_selection = self._agent_selector.next()
         self.num_frames = 0
 
+        return self.observations, self.infos
+
     def step(self, action):
         """
         step(action) takes in an action for the current agent (specified by
@@ -290,9 +451,11 @@ class raw_env(AECEnv):
 
         # selects the next agent.
         self.agent_selection = self._agent_selector.next()
-        if agent == "player_0" and not self.GAME.rail_path_completed:
-            reward += self.GAME.env_action_update(action, self.GAME.p0, self.GAME.MAP_PLAYER0)
-            self.rewards[agent] += reward
+        if agent == "player_0":
+            if not self.GAME.rail_path_completed:
+                reward += self.GAME.env_action_update(action, self.GAME.p0, self.GAME.MAP_PLAYER0)
+                self.rewards[agent] += reward
+            self.GAME.tick_count += 1
         elif agent == "player_1" and not self.GAME.rail_path_completed:
             reward += self.GAME.env_action_update(action, self.GAME.p1, self.GAME.MAP_PLAYER1)
             self.rewards[agent] += reward

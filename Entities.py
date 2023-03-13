@@ -4,10 +4,11 @@ import pygame as pg
 import Sprites
 
 
-class train:
+class Train:
     speed = 5
-    delay = 10000
-
+    delay = 100
+    x = 0
+    y = 0
     def __init__(self, x, y, col_size, filename, delay_shift=0):
         self.delay += delay_shift
         self.start_delay = self.delay
@@ -52,7 +53,7 @@ class train:
 
         self.sprite.rect.x += self.tr_dir['dir'][0]
         self.sprite.rect.y += self.tr_dir['dir'][1]
-        self.delay += time_tick / (self.speed / 100)
+        self.delay += self.speed
 
         self.colliders[0].x = self.sprite.rect.x
         self.colliders[0].y = self.sprite.rect.y - self.col_size

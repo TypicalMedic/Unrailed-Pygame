@@ -29,6 +29,7 @@ class Player(spr.sprite):
         """
         self.x = x
         self.y = y
+        self.comm = [0, 0, 0]
         x = x*cell_size + cell_size/2
         y = y*cell_size + cell_size/2
         spr.sprite.__init__(self, x, y, filename)

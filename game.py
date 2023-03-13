@@ -1,3 +1,5 @@
+import math
+
 import pygame as pg
 import Sprites as spr
 import Entities as ent
@@ -9,7 +11,7 @@ MAP = [
      "w"],
     ["w", "", "t", "", "s", "s", "", "", "", "", "t", "", "", "", "", "", "s", "t", "", "", "", "w", "t", "w"],
     ["w", "", "", "", "", "", "", "", "", "t", "t", "", "", "w", "", "", "t", "", "", "", "", "t", "t", "w"],
-    ["w", "t", "t", "t", "", "", "", "", "", "t", "t", "", "", "", "", "", "", "", "", "", "", "s", "s", "w"],
+    ["w", "t", "t", "t", "", "", "", "t", "", "t", "t", "", "", "", "", "", "", "", "", "", "", "s", "s", "w"],
     ["w", "t", "t", "T", "", "", "", "w", "s", "", "", "", "", "t", "", "s", "", "", "", "", "s", "s", "s", "w"],
     ["w", "", "p0", "", "p1", "", "", "s", "s", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
     ["w", "", "", "", "", "", "", "w", "", "", "", "t", "t", "t", "t", "", "", "", "", "", "", "", "", "w"],
@@ -28,8 +30,9 @@ MAP = [
 
 class UnrailedGame:
 
-    def __init__(self, delta_time=30, trees_needed=1, steel_needed=1, square_size=20, info_panel_height=100):
+    def __init__(self, delta_time=1, trees_needed=1, steel_needed=1, square_size=20, info_panel_height=100):
 
+        self.tick_count = 0
         self.collected_trees = 0
         self.collected_steel = 0
         self.collected_rails = 10
@@ -76,6 +79,7 @@ class UnrailedGame:
 
         pg.init()
         self.generate_map_from_template(MAP)
+        self.agents = {"player_0": self.p0, "player_1": self.p1}
         self.rails = pg.sprite.Group(self.rail_list)
         self.used_rail_list.append(self.rail)
         self.used_rails = pg.sprite.Group(self.used_rail_list)
@@ -117,11 +121,11 @@ class UnrailedGame:
 
     def step(self):
         reward = 0
-        if pg.time.get_ticks() > self.train.delay:
+        if self.tick_count > self.train.delay:
             self.train.move_train(self.tick_amount, self.rail_path, self.used_rail_list, self.station)
             if self.train.sprite.rect.collidelist(self.rail_path) == -1 and \
                     self.train.sprite.rect.collidelist(self.used_rail_list) == -1:
-                print('game over')
+                # print('game over')
                 reward = -500
                 self.game_over = True
             if self.train.sprite.rect.collidelist(self.rail_path) != -1:
@@ -130,11 +134,19 @@ class UnrailedGame:
                 ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
                 x = self.used_rail_list[-1].rect.x // self.square_size
                 y = self.used_rail_list[-1].rect.y // self.square_size
+                to_station_before = math.dist([x, y], [self.station_x, self.station_y])
                 self.MAP_TRAIN[y][x] = 0
                 self.used_rail_list.append(ur)
                 x = self.used_rail_list[-1].rect.x // self.square_size
                 y = self.used_rail_list[-1].rect.y // self.square_size
+                to_station_after = math.dist([x, y], [self.station_x, self.station_y])
+                if to_station_before > to_station_after:
+                    reward += 25    # change to fully depend on the distance
+                else:
+                    reward -= 10
                 self.MAP_TRAIN[y][x] = 1
+                self.train.x = x
+                self.train.y = y
                 self.used_rails = pg.sprite.Group(self.used_rail_list)
                 self.rail_paths = pg.sprite.Group(self.rail_path)
             if self.train.sprite.rect.colliderect(self.station):
@@ -148,7 +160,8 @@ class UnrailedGame:
             if event.type == pg.QUIT:
                 reward = 0
                 self.game_over = True
-        self.clock.tick(self.tick_amount)
+        # self.clock.tick(self.tick_amount)
+        # self.tick_count += 1
         return self.game_over, reward
 
     def run_game_singleplayer(self):
@@ -285,6 +298,8 @@ class UnrailedGame:
         self.MAP_STATION = np.zeros((len(map_template), len(map_template[0])))
         self.MAP_RAILS = np.zeros((len(map_template), len(map_template[0])))
 
+        self.field_x = len(map_template[0])
+        self.field_y = len(map_template)
         self.screen_width = len(map_template[0]) * self.square_size
         self.screen_height = len(map_template) * self.square_size + self.info_panel_height
         self.screen = pg.display.set_mode(size=[self.screen_width, self.screen_height])
@@ -314,14 +329,18 @@ class UnrailedGame:
                     self.p1 = Player(self.square_size, self.square_size, self.p0, x, y, self.square_size)
                 elif map_template[y][x] == "S":
                     self.MAP_STATION[y][x] = 1
+                    self.station_x = x
+                    self.station_y = y
                     self.station = spr.sprite(x * self.square_size + self.square_size / 2,
                                               y * self.square_size + self.square_size / 2, 'Assets/station.png')
                 elif map_template[y][x] == "T":
                     self.MAP_TRAIN[y][x] = 1
                     self.MAP_RAILS[y][x] = 1
-                    self.train = ent.train(x * self.square_size + self.square_size / 2,
+                    self.train = ent.Train(x * self.square_size + self.square_size / 2,
                                            y * self.square_size + self.square_size / 2, self.square_size,
-                                           'Assets/train.png', pg.time.get_ticks())
+                                           'Assets/train.png', 0)
+                    self.train.x = x
+                    self.train.y = y
                     self.rail = spr.sprite(x * self.square_size + self.square_size / 2,
                                            y * self.square_size + self.square_size / 2, 'Assets/usedrail.png')
                     self.last_rail_colliders = [
@@ -375,8 +394,8 @@ class UnrailedGame:
         msg += '   steel: ' + str(self.collected_steel)
         msg += '   rails: ' + str(self.collected_rails)
         msg1 = 'train speed: '
-        if pg.time.get_ticks() < self.train.start_delay:
-            msg += '    train departs in: ' + str((self.train.start_delay - pg.time.get_ticks()) // 1000)
+        if self.tick_count < self.train.delay:
+            msg += '    train departs in: ' + str((self.train.delay - self.tick_count))
             msg1 += '0'
         else:
             msg1 += str(self.train.speed)
