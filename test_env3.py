@@ -36,11 +36,12 @@ class Policy_Network(nn.Module):
         hidden_space2 = 32  # Nothing special with 32, feel free to change
 
         #  //////////////////////////////BUZ/////////////////////
-        self.fc1 = torch.nn.Linear(obs_space_dims, hidden_space1)
-        self.relu = torch.nn.LeakyReLU()
-        self.fc2 = torch.nn.Linear(hidden_space1, action_space_dims)
+        self.fc1 = nn.Linear(obs_space_dims, hidden_space1)
+        self.relu = nn.LeakyReLU()
+        self.fc2 = nn.Linear(hidden_space1, hidden_space2)
+        self.fc3 = nn.Linear(hidden_space2, action_space_dims)
 
-        self.probs = torch.nn.Softmax(dim=-1)
+        self.probs = nn.Softmax(dim=-1)
         #  //////////////////////////////BUZ/////////////////////
 
         # Shared Network
@@ -82,6 +83,8 @@ class Policy_Network(nn.Module):
         res = self.fc1(x.float())
         res = self.relu(res)
         res = self.fc2(res)
+        res = self.relu(res)
+        res = self.fc3(res)
         res = self.probs(res)
 
         return res, action_means, action_stddevs
@@ -181,48 +184,49 @@ communication_dims = 3
 rewards_over_seeds = []
 reward_last_n_episodes = queue.Queue(10)
 
-for seed in [1, 2, 3, 5, 8]:  # Fibonacci seeds
+for seed in [2, 3, 5, 8]:  # Fibonacci seeds [1, 2, 3, 5, 8]
     # set seed
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
 
     # Reinitialize agent every seed
-    agents = [REINFORCE(obs_space_dims, action_space_dims, i, communication_dims) for i in env.agents]
+    agents = {i: REINFORCE(obs_space_dims, action_space_dims, i, communication_dims) for i in env.agents}
+    # agents = [REINFORCE(obs_space_dims, action_space_dims, i, communication_dims) for i in env.agents]
     # agent = REINFORCE(obs_space_dims, action_space_dims)
     reward_over_episodes = []
     for episode in range(total_num_episodes):
         # gymnasium v26 requires users to set seed while resetting the environment
-        # print(episode)
-        env.reset()
+        if episode == 3:
+            print(episode)
+        env.reset(seed=seed)
         done = False
         i = 0
-        while not done:
-            for agent in agents:
-                obs, reward, terminated, truncated, info = env.last()
-                action, comm = agent.sample_action(obs)
+        for agent in env.agent_iter():
+            obs, reward, terminated, truncated, info = env.last()
+            action, comm = agents[agent].sample_action(obs)
 
-                # Step return type - `tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]`
-                # These represent the next observation, the reward from the step,
-                # if the episode is terminated, if the episode is truncated and
-                # additional info from the step
-                env.step(action)
-                env.GAME.agents[agent.name].comm = comm[0].tolist()
-                agent.rewards.append(reward)
+            # Step return type - `tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]`
+            # These represent the next observation, the reward from the step,
+            # if the episode is terminated, if the episode is truncated and
+            # additional info from the step
+            env.step(action)
+            env.GAME.agents[agent].comm = comm[0].tolist()
+            agents[agent].rewards.append(env.rewards[agent])
 
-                # End the episode when either truncated or terminated is true
-                #  - truncated: The episode duration reaches max number of timesteps
-                #  - terminated: Any of the state space values is no longer finite.
-                done = terminated or truncated
-
-        reward_over_episodes.append(sum([env.rewards[agent.name] for agent in agents])/len(agents))  # last episode reward (one number)
+            # End the episode when either truncated or terminated is true
+            #  - truncated: The episode duration reaches max number of timesteps
+            #  - terminated: Any of the state space values is no longer finite.
+            if terminated or truncated:
+                break
+        reward_over_episodes.append(sum([sum(agents[agent].rewards) for agent in env.agents])/len(agents))  # last episode reward (one number)
         if reward_last_n_episodes.full():
             reward_last_n_episodes.get()
-        reward_last_n_episodes.put(sum([env.rewards[agent.name] for agent in agents])/len(agents))
+        reward_last_n_episodes.put(sum([sum(agents[agent].rewards) for agent in env.agents])/len(agents))
         for agent in agents:
-            agent.update()
+            agents[agent].update()
 
-        if episode % 10 == 0:
+        if episode % 1 == 0:
             avg_reward = np.mean(reward_last_n_episodes.queue)
             print("Episode:", episode, "Average Reward:", avg_reward)
 

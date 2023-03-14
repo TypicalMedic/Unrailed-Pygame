@@ -11,14 +11,20 @@ from gymnasium.spaces import Box
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+
 LEFT = 0
 RIGHT = 1
 UP = 2
 DOWN = 3
 STAND = 4
-INTERACT = 5
+PLACE_RAIL = 5
+REMOVE_RAIL = 6
 
-MOVES = ["LEFT", "RIGHT", "UP", "DOWN", "STAND", "INTERACT"]
+MOVES = ["LEFT", "RIGHT", "UP", "DOWN", "STAND", "PLACE_RAIL", "REMOVE_RAIL"]
 NUM_ITERS = 600
 # REWARD_MAP = {
 #     (ROCK, ROCK): (0, 0),
@@ -110,7 +116,7 @@ class raw_env(AECEnv):
 
         # gymnasium spaces are defined and documented here: https://gymnasium.farama.org/api/spaces/
         # define what actions and how many of them are possible
-        self._action_spaces = {agent: Discrete(6) for agent in self.possible_agents}
+        self._action_spaces = {agent: Discrete(7) for agent in self.possible_agents}
         # define what we want to observe
         # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # self.observation_space = spaces.Dict(
@@ -142,7 +148,7 @@ class raw_env(AECEnv):
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return Discrete(6)
+        return Discrete(7)
 
     # print game there
     def render(self):
@@ -448,33 +454,29 @@ class raw_env(AECEnv):
 
         reward = 0
         self.terminate, reward = self.GAME.step()
-
-        # selects the next agent.
-        self.agent_selection = self._agent_selector.next()
         if agent == "player_0":
             if not self.GAME.rail_path_completed:
                 reward += self.GAME.env_action_update(action, self.GAME.p0, self.GAME.MAP_PLAYER0)
-                self.rewards[agent] += reward
             self.GAME.tick_count += 1
         elif agent == "player_1" and not self.GAME.rail_path_completed:
             reward += self.GAME.env_action_update(action, self.GAME.p1, self.GAME.MAP_PLAYER1)
-            self.rewards[agent] += reward
-        # Adds .rewards to ._cumulative_rewards
-        self._accumulate_rewards()
+
+        self.rewards[agent] = reward
+        if not self.terminate:
+            self.num_frames += 1
+            self.truncate = self.num_frames >= self.max_cycles
+        info = np.array(self.rewards[agent])
+        for ag in self.agents:
+            self.terminations[ag] = self.terminate
+            self.truncations[ag] = self.truncate
+            self.infos[ag] = {}
+
+        # selects the next agent.
+        self.agent_selection = self._agent_selector.next()
+        if agent == "player_1":
+            # Adds .rewards to ._cumulative_rewards
+            self._accumulate_rewards()
 
         if self.render_mode == "human":
             self.render()
 
-        if self.terminate:
-            reward = 0
-            # self.close()  # ??????????????????????????????????????????????????????????????????????????????????
-        if not self.terminate:
-            self.num_frames += 1
-            reward = 0
-            self.truncate = self.num_frames >= self.max_cycles
-
-        for ag in self.agents:
-            # self.rewards[ag] = 0
-            self.terminations[ag] = self.terminate
-            self.truncations[ag] = self.truncate
-            self.infos[ag] = {}

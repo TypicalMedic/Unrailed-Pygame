@@ -6,7 +6,7 @@ import Sprites
 
 class Train:
     speed = 5
-    delay = 100
+    delay = 500
     x = 0
     y = 0
     def __init__(self, x, y, col_size, filename, delay_shift=0):
