@@ -4,12 +4,14 @@ import pygame as pg
 import Sprites
 
 
-class train:
+class Train:
     speed = 5
-    delay = 10000
-    start_delay = delay
-
-    def __init__(self, x, y, col_size, filename):
+    delay = 500
+    x = 0
+    y = 0
+    def __init__(self, x, y, col_size, filename, delay_shift=0):
+        self.delay += delay_shift
+        self.start_delay = self.delay
         self.sprite = Sprites.sprite(x, y, filename)
         self.col_size = col_size
         self.colliders = [pg.rect.Rect(x - col_size * 0.5, y - col_size * 1.5, col_size, col_size),  # up
@@ -36,23 +38,11 @@ class train:
         }
         self.tr_dir = self.direction['right']
 
-    def move_train(self, time_tick, rail_list, used_rail, station):
-        dir_shuffle = [(0, 'up'), (1, 'down'), (2, 'left'), (3, 'right')]
-        random.shuffle(dir_shuffle)
-        for i in range(len(dir_shuffle)):
-            if self.colliders[dir_shuffle[i][0]].collidelist(rail_list) != -1 and \
-                    self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dir_shuffle[i][1]]
-                break
-        for i in range(len(dir_shuffle)):
-            if self.colliders[dir_shuffle[i][0]].colliderect(station) and \
-                    self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dir_shuffle[i][1]]
-                break
+    def move_train(self, time_tick, path_rail, used_rail, station):
 
         self.sprite.rect.x += self.tr_dir['dir'][0]
         self.sprite.rect.y += self.tr_dir['dir'][1]
-        self.delay += time_tick / (self.speed / 100)
+        self.delay += self.speed
 
         self.colliders[0].x = self.sprite.rect.x
         self.colliders[0].y = self.sprite.rect.y - self.col_size
@@ -66,6 +56,22 @@ class train:
         self.colliders[3].x = self.sprite.rect.x + self.col_size
         self.colliders[3].y = self.sprite.rect.y
 
+        dirs = ['up', 'down', 'left', 'right']
+        found_rail_path = False
+        found_station = False
+        for i in range(len(dirs)):
+            if len(path_rail) > 0 and self.colliders[i].colliderect(path_rail[0]) and \
+                    self.tr_dir['col'].collidelist(used_rail) == -1:
+                self.tr_dir = self.direction[dirs[i]]
+                found_rail_path = True
+                break
+        for i in range(len(dirs)):
+            if self.colliders[i].colliderect(station) and \
+                    self.tr_dir['col'].collidelist(used_rail) == -1:
+                self.tr_dir = self.direction[dirs[i]]
+                found_station = True
+                break
+        return found_rail_path, found_station
 
 class Resource:
     health = 10
