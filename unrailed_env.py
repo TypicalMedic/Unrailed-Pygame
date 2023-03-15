@@ -162,7 +162,7 @@ class raw_env(AECEnv):
             )
             return
 
-        self.GAME.render_game()
+        self.GAME.render_game([self._cumulative_rewards[agent] for agent in self.agents])
         # if len(self.agents) == 2:
         #     string = "Current state: Agent1: {} , Agent2: {}".format(
         #         MOVES[self.state[self.agents[0]]], MOVES[self.state[self.agents[1]]]

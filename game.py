@@ -96,9 +96,9 @@ class UnrailedGame:
         self.screen.blit(self.train.sprite.image, self.train.sprite.rect)
         self.dsp.update()
         self.text_font = pg.font.SysFont("arial", 25)
-        self.render_game()
+        self.render_game([])
 
-    def render_game(self):
+    def render_game(self, agent_rewards: []):
         self.screen.fill(self.bgclr)
         self.draw_grid(self.screen_width, (self.screen_height - self.info_panel_height), self.square_size)
         # pg.draw.rect(self.screen, rect=pl.collider, color='green')
@@ -112,23 +112,22 @@ class UnrailedGame:
         self.screen.blit(self.p0.image, self.p0.rect)
         self.screen.blit(self.p1.image, self.p1.rect)
         self.screen.blit(self.train.sprite.image, self.train.sprite.rect)
-        self.draw_game_info()
-        pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[3])
+        self.draw_game_info(agent_rewards)
+        # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[0])
+        # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[1])
+        # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[2])
+        # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[3])
 
         pg.display.update()
 
     def step(self):
         reward = 0
         if self.tick_count > self.train.delay:
-            self.train.move_train(self.tick_amount, self.rail_path, self.used_rail_list, self.station)
-            if self.train.sprite.rect.collidelist(self.rail_path) == -1 and \
-                    self.train.sprite.rect.collidelist(self.used_rail_list) == -1:
-                # print('game over')
-                reward = -500
-                self.game_over = True
-            if self.train.sprite.rect.collidelist(self.rail_path) != -1:
-                self.train.speed += self.train.speed * 0.1
-                ur = self.rail_path.pop(self.train.sprite.rect.collidelist(self.rail_path))
+            found_path, found_station = self.train.move_train(self.tick_amount, self.rail_path,
+                                                              self.used_rail_list, self.station)
+            if found_path:
+                # self.train.speed += self.train.speed * 0.1
+                ur = self.rail_path.pop(0)
                 ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
                 x = self.used_rail_list[-1].rect.x // self.square_size
                 y = self.used_rail_list[-1].rect.y // self.square_size
@@ -143,13 +142,18 @@ class UnrailedGame:
                 # else:
                 #     reward -= 10
                 self.MAP_TRAIN[y][x] = 1
+                self.MAP_RAILS[y][x] = 3
                 self.train.x = x
                 self.train.y = y
                 self.used_rails = pg.sprite.Group(self.used_rail_list)
                 self.rail_paths = pg.sprite.Group(self.rail_path)
-            if self.train.sprite.rect.colliderect(self.station):
+            if found_station:
                 print('game won!')
-                reward = 50000/len(self.rail_path)
+                reward = 2e4/len(self.used_rail_list) + 500
+                self.game_over = True
+            elif not self.train.tr_dir["col"].colliderect(self.used_rail_list[-1]):
+                # print('game over')
+                reward = -1e7/(self.tick_count + 1) - 500
                 self.game_over = True
             # collide_trees = pl.collider.collidelist(self.trees_list_sprites)
             # collide_steel = pl.collider.collidelist(self.steel_list_sprites)
@@ -258,7 +262,7 @@ class UnrailedGame:
                     self.steel_list_sprites = self.get_entities_sprites(self.steel_list)
                     self.steel = pg.sprite.Group(self.steel_list_sprites)
 
-            self.render_game()
+            self.render_game([0])
 
         self.dsp.quit()
 
@@ -283,6 +287,7 @@ class UnrailedGame:
                     self.rail_path.append(self.rail_list.pop(col.collidelist(self.rail_list)))
                     x = self.rail_path[-1].rect.x // self.square_size
                     y = self.rail_path[-1].rect.y // self.square_size
+                    self.MAP_RAILS[y][x] = 2
                     to_station_after = math.dist([x, y], [self.station_x, self.station_y])
                     if to_station_before > to_station_after:
                         reward += 1000/(to_station_after + 1)
@@ -293,7 +298,7 @@ class UnrailedGame:
                     self.rails = pg.sprite.Group(self.rail_list)
                     break
                 elif col.colliderect(self.station):
-                    self.train.speed *= 1000
+                    self.train.speed /= 1000
                     self.rail_path_completed = True
                     for r in self.rail_path:
                         r.image = pg.image.load('Assets/usedrail.png').convert_alpha()
@@ -350,7 +355,7 @@ class UnrailedGame:
                                               y * self.square_size + self.square_size / 2, 'Assets/station.png')
                 elif map_template[y][x] == "T":
                     self.MAP_TRAIN[y][x] = 1
-                    self.MAP_RAILS[y][x] = 1
+                    self.MAP_RAILS[y][x] = 3    # 1: bad rails 2: path rails 3: used rails
                     self.train = ent.Train(x * self.square_size + self.square_size / 2,
                                            y * self.square_size + self.square_size / 2, self.square_size,
                                            'Assets/train.png', 0)
@@ -405,7 +410,7 @@ class UnrailedGame:
             sprt.append(i.sprite)
         return sprt
 
-    def draw_game_info(self):
+    def draw_game_info(self, agent_rewards: []):
         """
         draws UI on the bottom of the game
         """
@@ -413,11 +418,14 @@ class UnrailedGame:
         msg += '   steel: ' + str(self.collected_steel)
         msg += '   rails: ' + str(self.collected_rails)
         msg1 = 'train speed: '
-        if self.tick_count < self.train.delay:
+        if self.tick_count < self.train.start_delay:
             msg += '    train departs in: ' + str((self.train.delay - self.tick_count))
             msg1 += '0'
         else:
             msg1 += str(self.train.speed)
+        msg1 += '   rewards: '
+        for i in agent_rewards:
+            msg1 += '%.2f, ' % i
         info_text = self.text_font.render(msg, True, 'black')
         self.screen.blit(info_text, [10, self.screen.get_height() - self.info_panel_height * 9 / 10])
         info_text = self.text_font.render(msg1, True, 'black')
@@ -455,14 +463,15 @@ class UnrailedGame:
                 map_pl[player.y][player.x] = 0
                 player.set_pos()
                 map_pl[player.y][player.x] = 1
-
+        if 0 <= action <= 3 and (collide_station or collide_walls != -1):
+            reward -= 15
         x = player.collider.x // self.square_size
         y = player.collider.y // self.square_size
         if PLACE_RAIL:
             if player.collider.collidelist(self.rail_list) == -1 and player.collider.collidelist(self.rail_path) == -1:
                 if self.collected_rails >= 1 and collide_steel == -1 \
                         and collide_trees == -1 and collide_walls == -1 \
-                        and self.p0.collider.collidelist(self.used_rail_list) == -1:
+                        and player.collider.collidelist(self.used_rail_list) == -1:
                     placed_bad_rails_len_before = len(self.rail_list)
                     self.collected_rails -= 1
                     self.MAP_RAILS[y][x] = 1
@@ -474,7 +483,7 @@ class UnrailedGame:
 
                     reward += self.calculate_rail_path()
                     if len(self.rail_list) > placed_bad_rails_len_before:
-                        reward -= 100
+                        reward -= 30 * math.dist([x, y], [self.station_x, self.station_y])
                 else:
                     reward -= 10
             else:

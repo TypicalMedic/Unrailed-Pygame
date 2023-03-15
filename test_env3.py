@@ -197,7 +197,7 @@ for seed in [2, 3, 5, 8]:  # Fibonacci seeds [1, 2, 3, 5, 8]
     reward_over_episodes = []
     for episode in range(total_num_episodes):
         # gymnasium v26 requires users to set seed while resetting the environment
-        if episode == 3:
+        if episode == 1:
             print(episode)
         env.reset(seed=seed)
         done = False
@@ -226,7 +226,7 @@ for seed in [2, 3, 5, 8]:  # Fibonacci seeds [1, 2, 3, 5, 8]
         for agent in agents:
             agents[agent].update()
 
-        if episode % 1 == 0:
+        if episode % 10 == 0:
             avg_reward = np.mean(reward_last_n_episodes.queue)
             print("Episode:", episode, "Average Reward:", avg_reward)
 

@@ -39,17 +39,6 @@ class Train:
         self.tr_dir = self.direction['right']
 
     def move_train(self, time_tick, path_rail, used_rail, station):
-        dirs = ['up', 'down', 'left', 'right']
-        for i in range(len(dirs)):
-            if len(path_rail) > 0 and self.colliders[i].colliderect(path_rail[0]) and \
-                    self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dirs[i]]
-                break
-        for i in range(len(dirs)):
-            if self.colliders[i].colliderect(station) and \
-                    self.tr_dir['col'].collidelist(used_rail) == -1:
-                self.tr_dir = self.direction[dirs[i]]
-                break
 
         self.sprite.rect.x += self.tr_dir['dir'][0]
         self.sprite.rect.y += self.tr_dir['dir'][1]
@@ -67,6 +56,22 @@ class Train:
         self.colliders[3].x = self.sprite.rect.x + self.col_size
         self.colliders[3].y = self.sprite.rect.y
 
+        dirs = ['up', 'down', 'left', 'right']
+        found_rail_path = False
+        found_station = False
+        for i in range(len(dirs)):
+            if len(path_rail) > 0 and self.colliders[i].colliderect(path_rail[0]) and \
+                    self.tr_dir['col'].collidelist(used_rail) == -1:
+                self.tr_dir = self.direction[dirs[i]]
+                found_rail_path = True
+                break
+        for i in range(len(dirs)):
+            if self.colliders[i].colliderect(station) and \
+                    self.tr_dir['col'].collidelist(used_rail) == -1:
+                self.tr_dir = self.direction[dirs[i]]
+                found_station = True
+                break
+        return found_rail_path, found_station
 
 class Resource:
     health = 10
