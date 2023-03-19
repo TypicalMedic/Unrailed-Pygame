@@ -19,7 +19,7 @@ class REINFORCE:
         """
 
         self.name = name
-        # Hyperparameters
+        # Hyper parameters
         self.learning_rate = 1e-4  # Learning rate for policy optimization
         self.gamma = 0.99  # Discount factor
         self.eps = 1e-6  # small number for mathematical stability
@@ -43,14 +43,6 @@ class REINFORCE:
         """
         state = torch.tensor(np.array([state]))
         probs, obs = self.net(state)
-
-        # create a normal distribution from the predicted
-        #   mean and standard deviation and sample an action
-
-        # action = distrib.sample()
-        # prob = distrib.log_prob(action)
-        #
-        # action = action.numpy()
         dist = Categorical(probs)
         action = dist.sample().item()
         prob = probs[0, action]
@@ -59,8 +51,8 @@ class REINFORCE:
         return action, obs
 
     def update(self):
-        loss = 0
         """Updates the policy network's weights."""
+        loss = 0
         for i in range(len(self.episode_rewards)):
             running_g = 0
             gs = []

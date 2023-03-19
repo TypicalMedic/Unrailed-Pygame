@@ -28,108 +28,117 @@ def show_plot(data):
     plt.show()
 
 
-plt.rcParams["figure.figsize"] = (10, 5)
+class TrainAgents:
+    def __init__(self, train_every: int = 10, avg_freq: int = 100, total_num_episodes: int = int(1e4),
+                 render_episode_every: int = 1, render_episode_after: int = 9900):
+        """
+        Class for training agents using RL algorythm and Unrailed environment
 
-train_every = 10
-avg_freq = 100
-total_num_episodes = int(1e4)  # Total number of episodes
+        :param train_every: after how many episodes' agents will update their policy weights
+        :param avg_freq: after how many episodes' average reward is calculated
+        :param total_num_episodes: how many episodes' agents will train
+        :param render_episode_every: after how many episodes' game renders, 1 for every episode
+        :param render_episode_after: after which episode game will try to render (using render_episode_every)
+        """
+        if render_episode_every <= 0:
+            render_episode_every = 1
+        if avg_freq <= 0:
+            avg_freq = 1
+        if train_every <= 0:
+            train_every = 1
 
-# Create and wrap the environment
-# env = gym.make("InvertedPendulum-v4")
-env = unrailed_env.env("human", episode_every=1, episode_after=9900)
-env.reset()
-wrapped_env = gym.wrappers.RecordEpisodeStatistics(env, 50)  # Records episode-reward
+        self.train_every = train_every
+        self.avg_freq = avg_freq
+        self.total_num_episodes = total_num_episodes  # Total number of episodes
 
-# Observation-space of env
-# obs_space_dims = [env.observation_space(agent).shape[0] for agent in env.agents]    # box?
-obs_space_dims = env.observation_space(env.agents[0]).shape[0]     # box? can write only one because space is identical?
-# Action-space of env
-# action_space_dims = [env.action_space(agent).n for agent in env.agents]     # discrete
-action_space_dims = env.action_space(env.agents[0]).n     # discrete can write only one because space is identical?
-communication_dims = 3
-rewards_over_seeds = []
-reward_last_n_episodes = queue.Queue(avg_freq)
+        # Create and wrap the environment
+        # env = gym.make("InvertedPendulum-v4")
+        self.env = unrailed_env.env("human", episode_every=render_episode_every, episode_after=render_episode_after)
+        self.env.reset()
+        self.render_episode_after = render_episode_after
+        # Observation-space of env
+        self.obs_space_dims = self.env.observation_space(self.env.agents[0]).shape[0]
+        # Action-space of env
+        self.action_space_dims = self.env.action_space(self.env.agents[0]).n
+        self.communication_dims = 3
+        self.reward_last_n_episodes = queue.Queue(avg_freq)
 
-header = ['episode', 'reward', 'rail length']
+        self.export_data_header = ['episode', 'reward', 'rail length']
 
-for seed in [5]:  # Fibonacci seeds [1, 2, 3, 5, 8]
-    data = []
-    # set seed
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
+    def train_agents(self, seeds: []):
+        rewards_over_seeds = []
+        for seed in seeds:  # Fibonacci seeds [1, 2, 3, 5, 8]
+            data = []
+            # set seed
+            torch.manual_seed(seed)
+            random.seed(seed)
+            np.random.seed(seed)
 
-    # Reinitialize agent every seed
-    agents = {i: REINFORCE(obs_space_dims, action_space_dims, i, communication_dims) for i in env.agents}
-    reward_over_episodes = []
-    for episode in range(total_num_episodes):
-        # gymnasium v26 requires users to set seed while resetting the environment
-        if episode == 9900:
-            print(episode)
-        env.reset(seed=seed)
-        env.GAME.episode = episode
-        obs = env.observe(env.agents[0])
-        for agent in env.agent_iter():
-            action, comm = agents[agent].sample_action(obs)
+            # Reinitialize agent every seed
+            agents = {i: REINFORCE(self.obs_space_dims, self.action_space_dims, i, self.communication_dims)
+                      for i in self.env.agents}
+            reward_over_episodes = []
+            for episode in range(self.total_num_episodes):
+                # gymnasium v26 requires users to set seed while resetting the environment
+                if episode == self.render_episode_after:
+                    input("Episodes will render now. Press Enter to continue...")
+                self.env.reset(seed=seed)
+                self.env.GAME.episode = episode
+                obs = self.env.observe(self.env.agents[0])
+                for agent in self.env.agent_iter():
+                    action, comm = agents[agent].sample_action(obs)
 
-            # Step return type - `tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]`
-            # These represent the next observation, the reward from the step,
-            # if the episode is terminated, if the episode is truncated and
-            # additional info from the step
-            env.step(action)
-            env.GAME.agents[agent].comm = comm[0].tolist()
-            obs, reward, terminated, truncated, info = env.last()
-            # End the episode when either truncated or terminated is true
-            #  - truncated: The episode duration reaches max number of timesteps
-            #  - terminated: Any of the state space values is no longer finite.
-            if terminated or truncated:
-                for i in env.agents:
-                    if i == agent:
-                        agents[i].rewards.append(env.rewards[i])
-                    else:
-                        agents[i].rewards[-1] += env.rewards[i]
-                    agents[i].episode_rewards.append(agents[i].rewards)
-                    agents[i].episode_probs.append(agents[i].probs)
-                    agents[i].rewards = []
-                    agents[i].probs = []
-                break
-            agents[agent].rewards.append(env.rewards[agent])
-        # print(sum(agents["player_0"].episode_rewards[-1]))
-        # print(sum(agents["player_1"].episode_rewards[-1]))
-        reward_over_episodes.append(sum([sum(agents[agent].episode_rewards[-1]) for agent in env.agents])/len(agents))  # last episode reward (one number)
-        if reward_last_n_episodes.full():
-            reward_last_n_episodes.get()
-        reward_last_n_episodes.put(sum([sum(agents[agent].episode_rewards[-1]) for agent in env.agents])/len(agents))
+                    # if the episode is terminated, if the episode is truncated and
+                    # additional info from the step
+                    self.env.step(action)
+                    self.env.GAME.agents[agent].comm = comm[0].tolist()
+                    obs, reward, terminated, truncated, info = self.env.last()
 
-        print("Episode:", episode, "Reward:", reward_last_n_episodes.queue[-1],
-              "rail length:", len(env.GAME.used_rail_list), "ticks:", env.GAME.tick_count)
-        data.append([episode, reward_last_n_episodes.queue[-1], len(env.GAME.used_rail_list)])
-        if episode % avg_freq == 0 and episode != 0:
-            avg_reward = np.mean(reward_last_n_episodes.queue)
-            print("///////// Average Reward:", avg_reward, " /////////")
+                    # End the episode when either truncated or terminated is true
+                    #  - truncated: The episode duration reaches max number of timesteps
+                    #  - terminated: Any of the state space values is no longer finite.
+                    if terminated or truncated:
+                        for i in self.env.agents:
+                            if i == agent:
+                                agents[i].rewards.append(self.env.rewards[i])
+                            else:
+                                agents[i].rewards[-1] += self.env.rewards[i]
+                            agents[i].episode_rewards.append(agents[i].rewards)
+                            agents[i].episode_probs.append(agents[i].probs)
+                            agents[i].rewards = []
+                            agents[i].probs = []
+                        break
+                    agents[agent].rewards.append(self.env.rewards[agent])
+                reward_over_episodes.append(sum([sum(agents[agent].episode_rewards[-1])
+                                                 for agent in self.env.agents]) / len(agents))
+                if self.reward_last_n_episodes.full():
+                    self.reward_last_n_episodes.get()
+                self.reward_last_n_episodes.put(
+                    sum([sum(agents[agent].episode_rewards[-1]) for agent in self.env.agents]) / len(agents))
 
-        if episode % train_every == 0 and episode != 0:
-            print("training...")
-            for agent in agents:
-                agents[agent].update()
-    filename = "Training rewards/" + datetime.datetime.now().strftime("%Y.%m.%d_%H-%M-%S_seed") + str(seed) + ".csv"
+                print("Episode:", episode, "Reward:", self.reward_last_n_episodes.queue[-1],
+                      "rail length:", len(self.env.GAME.used_rail_list), "ticks:", self.env.GAME.tick_count)
+                data.append([episode, self.reward_last_n_episodes.queue[-1], len(self.env.GAME.used_rail_list)])
+                if episode % self.avg_freq == 0 and episode != 0:
+                    avg_reward = np.mean(self.reward_last_n_episodes.queue)
+                    print("///////// Average Reward:", avg_reward, " /////////")
 
-    f = open(filename, 'w+', encoding='UTF8', newline='')
-    writer = csv.writer(f)
-    # write the header
-    writer.writerow(header)
-    writer.writerows(data)
-    f.close()
-    rewards_over_seeds.append(reward_over_episodes)
-    show_plot(pd.read_csv(filename))
+                if episode % self.train_every == 0 and episode != 0:
+                    print("training...")
+                    for agent in agents:
+                        agents[agent].update()
+            filename = "Training rewards/" + datetime.datetime.now().strftime("%Y.%m.%d_%H-%M-%S_seed") + str(
+                seed) + ".csv"
 
-rewards_to_plot = [[reward for reward in rewards] for rewards in rewards_over_seeds]
-df1 = pd.DataFrame(rewards_to_plot).melt()
-df1.rename(columns={"variable": "episodes", "value": "reward"}, inplace=True)
-sns.set(style="darkgrid", context="talk", palette="rainbow")
-sns.lineplot(x="episodes", y="reward", data=df1).set(
-    title="REINFORCE for InvertedPendulum-v4"
-)
-plt.show()
+            f = open(filename, 'w+', encoding='UTF8', newline='')
+            writer = csv.writer(f)
+            writer.writerow(self.export_data_header)
+            writer.writerows(data)
+            f.close()
+            rewards_over_seeds.append(reward_over_episodes)
+            show_plot(pd.read_csv(filename))
 
 
+train = TrainAgents(train_every=10, avg_freq=100, total_num_episodes=int(1e4),
+                    render_episode_every=1, render_episode_after=9900)
+train.train_agents([5])
