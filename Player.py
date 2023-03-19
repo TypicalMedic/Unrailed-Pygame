@@ -1,3 +1,5 @@
+import random
+
 import pygame as pg
 import Sprites as spr
 
@@ -55,7 +57,8 @@ class Player(spr.sprite):
                 'pic': pg.image.load('Assets/player_down.png').convert_alpha()
             }
         }
-        self.pl_dir = self.direction['up']
+        self.pl_dir = self.direction[random.sample(['up', 'down', 'left', 'right'], 1)[0]]
+        self.image = self.pl_dir['pic']
     """
     function to change collider position and player sprite based on where the player is facing
     """

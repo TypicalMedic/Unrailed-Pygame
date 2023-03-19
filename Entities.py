@@ -5,8 +5,8 @@ import Sprites
 
 
 class Train:
-    speed = 5
-    delay = 500
+    speed = 1
+    delay = 50
     x = 0
     y = 0
     def __init__(self, x, y, col_size, filename, delay_shift=0):
@@ -61,7 +61,7 @@ class Train:
         found_station = False
         for i in range(len(dirs)):
             if len(path_rail) > 0 and self.colliders[i].colliderect(path_rail[0]) and \
-                    self.tr_dir['col'].collidelist(used_rail) == -1:
+                    not self.tr_dir['col'].colliderect(used_rail[-1]):
                 self.tr_dir = self.direction[dirs[i]]
                 found_rail_path = True
                 break
