@@ -8,8 +8,8 @@ class REINFORCE:
     """REINFORCE algorithm."""
 
     def __init__(self, obs_space_dims: int, action_space_dims: int, name: str, comm_dims: int):
-        """Initializes an agent that learns a policy via REINFORCE algorithm [1]
-        to solve the task at hand (Inverted Pendulum v4).
+        """Initializes an agent that learns a policy via REINFORCE algorithm
+        to solve the task at hand.
 
         Args:
             obs_space_dims: Dimension of the observation space

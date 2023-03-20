@@ -18,6 +18,12 @@ import csv
 
 
 def show_plot(data):
+    """
+    draws pyplot of the rewards from data
+
+    :param data: csv parsed file with episode and reward columns
+    :return:
+    """
     df = pd.DataFrame(data)
     df["reward"].plot()
 
@@ -98,35 +104,45 @@ class TrainAgents:
                     #  - truncated: The episode duration reaches max number of timesteps
                     #  - terminated: Any of the state space values is no longer finite.
                     if terminated or truncated:
+                        # when the game is over both agents get game over reward
                         for i in self.env.agents:
                             if i == agent:
                                 agents[i].rewards.append(self.env.rewards[i])
                             else:
                                 agents[i].rewards[-1] += self.env.rewards[i]
+                            # append rewards and probabilities for this episode and clear them before next episode
                             agents[i].episode_rewards.append(agents[i].rewards)
                             agents[i].episode_probs.append(agents[i].probs)
                             agents[i].rewards = []
                             agents[i].probs = []
                         break
+                    # append reward after checking that the game is not over
                     agents[agent].rewards.append(self.env.rewards[agent])
+
                 reward_over_episodes.append(sum([sum(agents[agent].episode_rewards[-1])
                                                  for agent in self.env.agents]) / len(agents))
                 if self.reward_last_n_episodes.full():
                     self.reward_last_n_episodes.get()
+                # append for avg calculation
                 self.reward_last_n_episodes.put(
                     sum([sum(agents[agent].episode_rewards[-1]) for agent in self.env.agents]) / len(agents))
 
                 print("Episode:", episode, "Reward:", self.reward_last_n_episodes.queue[-1],
                       "rail length:", len(self.env.GAME.used_rail_list), "ticks:", self.env.GAME.tick_count)
+                # append data for csv exporting
                 data.append([episode, self.reward_last_n_episodes.queue[-1], len(self.env.GAME.used_rail_list)])
+
+                # calculate avg every n episodes
                 if episode % self.avg_freq == 0 and episode != 0:
                     avg_reward = np.mean(self.reward_last_n_episodes.queue)
                     print("///////// Average Reward:", avg_reward, " /////////")
 
+                # train both agents every n episodes using last n episodes data
                 if episode % self.train_every == 0 and episode != 0:
                     print("training...")
                     for agent in agents:
                         agents[agent].update()
+            # save rewards and e.t.c. to csv
             filename = "Training rewards/" + datetime.datetime.now().strftime("%Y.%m.%d_%H-%M-%S_seed") + str(
                 seed) + ".csv"
 

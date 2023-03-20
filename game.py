@@ -33,9 +33,9 @@ REWARDS = {"win": 10000,
            "put path closer": 1000,
            "put path further": 500,
            "every step": -5,
-           "bad rail placed": -6,
-           "bad rail removed": 2,
-           "path removed": -50,
+           "bad rail placed": -50,
+           "bad rail removed": 10,
+           "path removed": -2000,
            "made rail": 15,
            "tree/steel collided": 1,
            "got tree/steel": 6,
@@ -58,7 +58,7 @@ class UnrailedGame:
             :param square_size: size of one grid square in pixels, 20 as the default
             :param info_panel_height: height of the info panel in pixels, 100 as the default
         """
-        self.episode = 0
+        self.episode = 0    # current training episode
         self.tick_count = 0
         self.collected_trees = 0
         self.collected_steel = 0
@@ -66,25 +66,25 @@ class UnrailedGame:
         self.screen_width = 600
         self.screen_height = 500
         self.game_over = False
-        self.square_color = 'grey'
+        self.square_color = 'light grey'
         self.bgclr = (255, 255, 255)
         self.rail_path_completed = False
 
-        self.p0 = None
-        self.p1 = None
+        self.p0 = None  # first agent
+        self.p1 = None  # second agent
         self.rail = None
         self.train = None
         self.station = None
-        self.screen = None
+        self.screen = None  # PyGame screen
 
         self.rail_list = []
         self.rail_path = []
         self.used_rail_list = []
-        self.last_rail_colliders = []
+        self.last_rail_colliders = []   # colliders of last rail in the path
         self.walls_list = []
 
         self.trees_list = []
-        self.trees_list_sprites = []
+        self.trees_list_sprites = []    # sprite group for rendering
 
         self.steel_list = []
         self.steel_list_sprites = []
@@ -104,23 +104,22 @@ class UnrailedGame:
         self.square_size = square_size
         self.info_panel_height = info_panel_height
 
-        pg.init()
-        self.generate_map_from_template(MAP)
+        pg.init()   # initializing game
+        self.generate_map_from_template(MAP)    # making game field
         self.p0.ally = self.p1
         self.p1.ally = self.p0
         self.agents = {"player_0": self.p0, "player_1": self.p1}
         self.rails = pg.sprite.Group(self.rail_list)
-        self.used_rail_list.append(self.rail)
+        self.used_rail_list.append(self.rail)   # self.rail is the one under the train, so it goes to the used rail list
         self.used_rails = pg.sprite.Group(self.used_rail_list)
         self.rail_paths = pg.sprite.Group(self.rail_path)
         self.walls = pg.sprite.Group(self.walls_list)
         self.trees = pg.sprite.Group(self.trees_list_sprites)
         self.steel = pg.sprite.Group(self.steel_list_sprites)
-        self.clock = pg.time.Clock()
+        self.clock = pg.time.Clock()    # used to control time passing in-game
         self.dsp = pg.display
         self.text_font = pg.font.SysFont("arial", 25)
-        self.calculate_rail_path()
-        # self.render_game([])
+        self.calculate_rail_path()  # create (if possible) rail path after creating game field
 
     def render_game(self, agent_rewards: []):
         """
@@ -129,6 +128,7 @@ class UnrailedGame:
         :param agent_rewards: Array of current agents rewards
         """
         self.screen.fill(self.bgclr)
+        # renders grid on the field
         self.draw_grid(self.screen_width, (self.screen_height - self.info_panel_height), self.square_size)
         # pg.draw.rect(self.screen, rect=pl.collider, color='green')
         self.trees.draw(self.screen)
@@ -141,13 +141,13 @@ class UnrailedGame:
         self.screen.blit(self.p0.image, self.p0.rect)
         self.screen.blit(self.p1.image, self.p1.rect)
         self.screen.blit(self.train.sprite.image, self.train.sprite.rect)
-        self.draw_game_info(agent_rewards)
+        self.draw_game_info(agent_rewards)  # render game info in the bottom
         # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[0])
         # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[1])
         # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[2])
         # pg.draw.rect(self.screen, color="blue", rect=self.last_rail_colliders[3])
 
-        pg.display.update()
+        pg.display.update()     # update render changes
 
     def step(self):
         """
@@ -157,45 +157,35 @@ class UnrailedGame:
         """
         reward = 0
         if self.tick_count > self.train.delay:
-            found_path, found_station = self.train.move_train(self.tick_amount, self.rail_path,
-                                                              self.used_rail_list, self.station)
-            if found_path:
-                # self.train.speed += self.train.speed * 0.1
+            found_path, found_station = self.train.move_train(self.rail_path, self.used_rail_list, self.station)
+            if found_path:   # when train reaches rail, being part oh the path
                 ur = self.rail_path.pop(0)
                 ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
+                # calculate grid x for previous train position, we use last used rail because train just passed it
                 x = self.used_rail_list[-1].rect.x // self.square_size
                 y = self.used_rail_list[-1].rect.y // self.square_size
-                # to_station_before = math.dist([x, y], [self.station_x, self.station_y])
-                self.MAP_TRAIN[y][x] = 0
+                self.MAP_TRAIN[y][x] = 0    # train moved from one cell to another, so we update map correspondingly
                 self.used_rail_list.append(ur)
-                # reward += REWARDS["passed 1 rail"]
-                x = self.used_rail_list[-1].rect.x // self.square_size
+                x = self.used_rail_list[-1].rect.x // self.square_size  # new train position in grid
                 y = self.used_rail_list[-1].rect.y // self.square_size
-                # to_station_after = math.dist([x, y], [self.station_x, self.station_y])
-                # if to_station_before > to_station_after:
-                #     reward += 25  # change to fully depend on the distance
-                # else:
-                #     reward -= 10
                 self.MAP_TRAIN[y][x] = 1
-                self.MAP_RAILS[y][x] = 3
+                self.MAP_RAILS[y][x] = 3    # mark current rail under the train as used
                 self.train.x = x
                 self.train.y = y
                 self.used_rails = pg.sprite.Group(self.used_rail_list)
                 self.rail_paths = pg.sprite.Group(self.rail_path)
-            if found_station:
+            if found_station:   # when train reaches station
                 print('game won!')
                 reward = REWARDS["win"]
                 self.game_over = True
+            # when train has no rail under its sprite even a little
             elif not self.train.tr_dir["col"].colliderect(self.used_rail_list[-1]):
-                # print('game over')
                 reward = REWARDS["lose"] + REWARDS["passed 1 rail"] * len(self.used_rail_list) ** 1.1
                 self.game_over = True
-        for event in pg.event.get():
+        for event in pg.event.get():    # when window is closed manually
             if event.type == pg.QUIT:
                 reward = 0
                 self.game_over = True
-        # self.clock.tick(self.tick_amount)
-        # self.tick_count += 1
         return self.game_over, reward
 
     def run_game_singleplayer(self):
@@ -271,14 +261,6 @@ class UnrailedGame:
                                 self.rail_list.append(rail)
                                 self.rails = pg.sprite.Group(self.rail_list)
                                 self.calculate_rail_path()
-
-                                # while len(self.rail_path) != 0:
-                                #     ur = self.rail_path.pop(-1)
-                                #     ur.image = pg.image.load('Assets/usedrail.png').convert_alpha()
-                                #     self.used_rail_list.append(ur)
-                                # self.used_rails = pg.sprite.Group(self.used_rail_list)
-                                # self.rail_paths = pg.sprite.Group(self.rail_path)
-                    # чисто чтобы смотреть где коллайдер, потом удалить?
                     self.p0.set_dir()
             if collide_train:
                 if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
@@ -307,23 +289,26 @@ class UnrailedGame:
         """
         reward = 0
         clear = False
-        while not clear:
+        while not clear:    # loops until every possible rail for path is found
             clear = True
-            for col in self.last_rail_colliders:
-                if col.collidelist(self.rail_list) != -1:
-                    clear = False
-                    if len(self.rail_path) != 0:
+            for col in self.last_rail_colliders:    # check upper, lower, left and right cells for unused rails
+                if col.collidelist(self.rail_list) != -1:   # found unused rail
+                    clear = False   # now we have to re-check to ensure no more unused rails exist near new path's end
+                    if len(self.rail_path) != 0:    # update maps accordingly
                         x = self.rail_path[-1].rect.x // self.square_size
                         y = self.rail_path[-1].rect.y // self.square_size
-                        self.MAP_RAILS[y][x] = 2
+                        self.MAP_RAILS[y][x] = 2    # if unwalked path is not empty
                     else:
                         x = self.used_rail_list[-1].rect.x // self.square_size
                         y = self.used_rail_list[-1].rect.y // self.square_size
-                        self.MAP_RAILS[y][x] = 3
+                        self.MAP_RAILS[y][x] = 3    # if unwalked path is empty (last rail in path was already used)
 
+                    # distance from path's end to the station before path extending
                     to_station_before = math.dist([x, y], [self.station_x, self.station_y])
+                    # new path's end coordinates
                     x = self.rail_list[col.collidelist(self.rail_list)].rect.x
                     y = self.rail_list[col.collidelist(self.rail_list)].rect.y
+                    # move colliders to the right place
                     self.last_rail_colliders = [
                         pg.rect.Rect(x, y - self.square_size, self.square_size, self.square_size),  # up
                         pg.rect.Rect(x, y + self.square_size, self.square_size, self.square_size),  # down
@@ -332,8 +317,9 @@ class UnrailedGame:
                     self.rail_path.append(self.rail_list.pop(col.collidelist(self.rail_list)))
                     x = self.rail_path[-1].rect.x // self.square_size
                     y = self.rail_path[-1].rect.y // self.square_size
-                    self.MAP_RAILS[y][x] = 4
+                    self.MAP_RAILS[y][x] = 4    # mark this cell as the last rail in the path
                     to_station_after = math.dist([x, y], [self.station_x, self.station_y])
+                    # reward differs based on distance before and after
                     if to_station_before > to_station_after:
                         reward += REWARDS["put path closer"]
                     else:
@@ -375,43 +361,44 @@ class UnrailedGame:
         self.field_y = height
         self.screen_width = width * self.square_size
         self.screen_height = height * self.square_size + self.info_panel_height
-        self.screen = pg.display.set_mode(size=[self.screen_width, self.screen_height])
+        self.screen = pg.display.set_mode(size=[self.screen_width, self.screen_height])     # setup game screen
+        # look through map array and generate corresponding game elements
         for y in range(height):
             for x in range(width):
-                if map_template[y][x] == "w":
+                if map_template[y][x] == "w":   # wall
                     self.MAP_WALLS[y][x] = 1
                     self.walls_list.append(
                         spr.sprite(x * self.square_size + self.square_size / 2,
                                    y * self.square_size + self.square_size / 2, 'Assets/wall.png'))
-                elif map_template[y][x] == "t":
+                elif map_template[y][x] == "t":     # tree
                     self.MAP_TREES[y][x] = 1
                     self.trees_list.append(
                         ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
                                                 y * self.square_size + self.square_size / 2, 'Assets/tree.png'), 10, 1))
-                elif map_template[y][x] == "s":
+                elif map_template[y][x] == "s":     # steel
                     self.MAP_STEEL[y][x] = 1
                     self.steel_list.append(
                         ent.Resource(spr.sprite(x * self.square_size + self.square_size / 2,
                                                 y * self.square_size + self.square_size / 2, 'Assets/steel.png'), 10,
                                      1))
-                elif map_template[y][x] == "p0":
+                elif map_template[y][x] == "p0":    # first agent
                     self.MAP_PLAYER0[y][x] = 1
                     self.p0 = Player(self.square_size, self.square_size, self.p1, x, y, self.square_size)
-                elif map_template[y][x] == "p1":
+                elif map_template[y][x] == "p1":    # second agent
                     self.MAP_PLAYER1[y][x] = 1
                     self.p1 = Player(self.square_size, self.square_size, self.p0, x, y, self.square_size)
-                elif map_template[y][x] == "S":
+                elif map_template[y][x] == "S":     # station
                     self.MAP_STATION[y][x] = 1
                     self.station_x = x
                     self.station_y = y
                     self.station = spr.sprite(x * self.square_size + self.square_size / 2,
                                               y * self.square_size + self.square_size / 2, 'Assets/station.png')
-                elif map_template[y][x] == "T":
+                elif map_template[y][x] == "T":     # train and rail under it
                     self.MAP_TRAIN[y][x] = 1
                     self.MAP_RAILS[y][x] = 3  # 1: bad rails 2: path rails 3: used rails 4: last rail in path
                     self.train = ent.Train(x * self.square_size + self.square_size / 2,
                                            y * self.square_size + self.square_size / 2, self.square_size,
-                                           'Assets/train.png', 0)
+                                           'Assets/train_right.png', 0)
                     self.train.x = x
                     self.train.y = y
                     self.rail = spr.sprite(x * self.square_size + self.square_size / 2,
@@ -425,7 +412,7 @@ class UnrailedGame:
                                      self.square_size),  # right
                         pg.rect.Rect(x * self.square_size - self.square_size, y * self.square_size, self.square_size,
                                      self.square_size)]  # left
-                elif map_template[y][x] == "r":  # use only for path rails!
+                elif map_template[y][x] == "r":  # rail, use only for path rails!
                     rail = spr.sprite(x * self.square_size + self.square_size / 2,
                                       y * self.square_size + self.square_size / 2, 'Assets/rail.png')
                     self.rail_list.append(rail)
@@ -438,7 +425,7 @@ class UnrailedGame:
 
     def draw_grid(self, w, h, size):
         """
-        draws black grid
+        draws grid
 
         Parameters:
             w:
@@ -479,6 +466,7 @@ class UnrailedGame:
         msg += '   rails: ' + str(self.collected_rails)
         msg1 = 'train speed: '
         if self.tick_count < self.train.start_delay:
+            # how many ticks before train departs
             msg += '    train departs in: ' + str((self.train.delay - self.tick_count))
             msg1 += '0'
         else:
@@ -506,6 +494,7 @@ class UnrailedGame:
             return reward
         PLACE_RAIL = False
         REMOVE_RAIL = False
+        # do stuff based on chosen action (actions are defined in the unrailed_env)
         if action == 0:
             player.pl_dir = player.direction['left']
         elif action == 1:
@@ -521,24 +510,28 @@ class UnrailedGame:
         elif action == 6:
             REMOVE_RAIL = True
         player.set_dir()
+        # check collisions in front of the agent
         collide_trees = player.collider.collidelist(self.trees_list_sprites)
         collide_steel = player.collider.collidelist(self.steel_list_sprites)
         collide_train = player.collider.colliderect(self.train.sprite)
         collide_station = player.collider.colliderect(self.station)
         collide_walls = player.collider.collidelist(self.walls_list)
+        # if nothing 'solid' is in front of the agent, and it decided to move then change position
         if collide_trees == -1 and collide_steel == -1 and not collide_train \
                 and not collide_station and collide_walls == -1:
             if 0 <= action < 4:
                 map_pl[player.y][player.x] = 0
                 player.set_pos()
                 map_pl[player.y][player.x] = 1
-        x = player.collider.x // self.square_size
+        x = player.collider.x // self.square_size   # calculate grid x
         y = player.collider.y // self.square_size
 
         reward += REWARDS["every step"]
-        if PLACE_RAIL:
+        if PLACE_RAIL:   # rails are placed UNDER the agent
+            # if under the agent is empty and there are rails available then place rail under the agent
             if player.rect.collidelist(self.rail_list) == -1 and player.rect.collidelist(self.rail_path) == -1:
                 if self.collected_rails >= 1 and player.rect.collidelist(self.used_rail_list) == -1:
+                    # we need later to check whether agent placed bad rail
                     placed_bad_rails_len_before = len(self.rail_list)
                     self.collected_rails -= 1
                     self.MAP_RAILS[y][x] = 1
@@ -550,15 +543,18 @@ class UnrailedGame:
 
                     mid = self.calculate_rail_path()
                     reward += mid
+                    # check after path was formed how many bad rails are on the field now
                     if len(self.rail_list) > placed_bad_rails_len_before:
                         reward += REWARDS["bad rail placed"]
-        elif REMOVE_RAIL:
+        elif REMOVE_RAIL:   # rail is removed under the agent too
+            # if there is bad rail under
             if player.rect.collidelist(self.rail_list) != -1:
                 reward += REWARDS["bad rail removed"]
                 self.collected_rails += 1
                 self.rail_list.pop(player.rect.collidelist(self.rail_list))
                 self.MAP_RAILS[y][x] = 0
                 self.rails = pg.sprite.Group(self.rail_list)
+            # if there is last path rail under
             elif player.rect.collidelist(self.rail_path) != -1:
                 if player.rect.collidelist(self.rail_path) == len(self.rail_path) - 1:
                     self.collected_rails += 1
@@ -577,15 +573,18 @@ class UnrailedGame:
                         pg.rect.Rect(x, y + self.square_size, self.square_size, self.square_size),  # down
                         pg.rect.Rect(x + self.square_size, y, self.square_size, self.square_size),  # right
                         pg.rect.Rect(x - self.square_size, y, self.square_size, self.square_size)]  # left
+                    # recalculate path again, because there might be bad rails nearby
                     mid = self.calculate_rail_path()
                     reward += mid
         elif collide_train:
+            # craft rail
             if self.collected_trees >= self.trees_needed and self.collected_steel >= self.steel_needed:
                 self.collected_trees -= self.trees_needed
                 self.collected_steel -= self.steel_needed
                 self.collected_rails += 1
                 reward += REWARDS["made rail"]
         elif collide_trees != -1:
+            # cut down tree
             reward += REWARDS["tree/steel collided"]
             if self.trees_list[collide_trees].damage():
                 reward += REWARDS["got tree/steel"]
@@ -597,6 +596,7 @@ class UnrailedGame:
                 self.trees_list_sprites = self.get_entities_sprites(self.trees_list)
                 self.trees = pg.sprite.Group(self.trees_list_sprites)
         elif collide_steel != -1:
+            # mine steel
             reward += REWARDS["tree/steel collided"]
             if self.steel_list[collide_steel].damage():
                 reward += REWARDS["got tree/steel"]

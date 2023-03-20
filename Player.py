@@ -59,18 +59,19 @@ class Player(spr.sprite):
         }
         self.pl_dir = self.direction[random.sample(['up', 'down', 'left', 'right'], 1)[0]]
         self.image = self.pl_dir['pic']
-    """
-    function to change collider position and player sprite based on where the player is facing
-    """
+
     def set_dir(self):
+        """
+        function to change collider position and player sprite based on where the player is facing
+        """
         self.image = self.pl_dir['pic']
         self.collider.x = self.rect.x + self.pl_dir['dir'][0] * self.move_delta
         self.collider.y = self.rect.y + self.pl_dir['dir'][1] * self.move_delta
 
-    """
-    moves player forward in the direction where it faces
-    """
     def set_pos(self):
+        """
+        moves player forward in the direction where it faces
+        """
         self.rect.x += self.pl_dir['dir'][0] * self.move_delta
         self.x += self.pl_dir['dir'][0]
         self.rect.y += self.pl_dir['dir'][1] * self.move_delta
