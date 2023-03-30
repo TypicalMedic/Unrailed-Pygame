@@ -7,7 +7,8 @@ import torch
 class REINFORCE:
     """REINFORCE algorithm."""
 
-    def __init__(self, obs_space_dims: int, action_space_dims: int, name: str, comm_dims: int):
+    def __init__(self, obs_space_dims: int, action_space_dims: int, name: str, comm_dims: int,
+                 learning_rate=1e-4, discount=0.33):
         """Initializes an agent that learns a policy via REINFORCE algorithm
         to solve the task at hand.
 
@@ -20,8 +21,8 @@ class REINFORCE:
 
         self.name = name
         # Hyper parameters
-        self.learning_rate = 1e-4  # Learning rate for policy optimization
-        self.gamma = 0.99  # Discount factor
+        self.learning_rate = learning_rate  # Learning rate for policy optimization
+        self.gamma = discount  # Discount factor
         self.eps = 1e-6  # small number for mathematical stability
 
         self.probs = []  # Stores probability values of the sampled action
@@ -39,16 +40,16 @@ class REINFORCE:
             state: Observation from the environment
 
         Returns:
-            action: Action to be performed
+            action: Action to be performed, communication array
         """
         state = torch.tensor(np.array([state]))
-        probs, obs = self.net(state)
+        probs, communication = self.net(state)
         dist = Categorical(probs)
         action = dist.sample().item()
         prob = probs[0, action]
         self.probs.append(prob)
 
-        return action, obs
+        return action, communication
 
     def update(self):
         """Updates the policy network's weights."""
@@ -66,7 +67,7 @@ class REINFORCE:
 
             # minimize -1 * prob * reward obtained
             for log_prob, delta in zip(self.episode_probs[i], deltas):
-                loss += log_prob.mean() * delta * (-1)
+                loss += torch.log(log_prob) * delta * (-1)
 
         # Update the policy network
         self.optimizer.zero_grad()

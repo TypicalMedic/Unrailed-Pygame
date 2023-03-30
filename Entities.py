@@ -1,5 +1,3 @@
-import random
-
 import pygame as pg
 import Sprites
 
@@ -23,7 +21,7 @@ class Train:
         """
         self.delay += delay_shift
         self.start_delay = self.delay   # start delay is needed only before train takes off
-        self.sprite = Sprites.sprite(x, y, filename)
+        self.sprite = Sprites.CustomSprite(x, y, filename)
         self.col_size = col_size
         self.colliders = [pg.rect.Rect(x - col_size * 0.5, y - col_size * 1.5, col_size, col_size),  # up
                           pg.rect.Rect(x - col_size * 0.5, y + col_size * 0.5, col_size, col_size),  # down
@@ -68,7 +66,7 @@ class Train:
         self.sprite.rect.y += self.tr_dir['dir'][1]
         self.delay += self.speed    # defining when train moves again
 
-        # update colliders
+        # region update colliders
         self.colliders[0].x = self.sprite.rect.x
         self.colliders[0].y = self.sprite.rect.y - self.col_size
 
@@ -80,6 +78,7 @@ class Train:
 
         self.colliders[3].x = self.sprite.rect.x + self.col_size
         self.colliders[3].y = self.sprite.rect.y
+        # endregion
 
         dirs = ['up', 'down', 'left', 'right']
         found_rail_path = False

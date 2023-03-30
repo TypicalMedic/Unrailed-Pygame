@@ -1,7 +1,7 @@
 import pygame as pg
 
 
-class sprite(pg.sprite.Sprite):
+class CustomSprite(pg.sprite.Sprite):
     """
     class to simplify sprite render
     """

@@ -4,7 +4,7 @@ import pygame as pg
 import Sprites as spr
 
 
-class Player(spr.sprite):
+class Player(spr.CustomSprite):
     """
     class to store player info and change its direction, position
     uses sprite class for aesthetic purposes, might be replaced with rect later
@@ -34,7 +34,7 @@ class Player(spr.sprite):
         self.comm = [0, 0, 0]
         x = x*cell_size + cell_size/2
         y = y*cell_size + cell_size/2
-        spr.sprite.__init__(self, x, y, filename)
+        spr.CustomSprite.__init__(self, x, y, filename)
         self.col_size = col_size
         self.ally = ally
         self.collider = pg.rect.Rect(x - col_size * 0.5, y - col_size * 1.5, col_size, col_size)

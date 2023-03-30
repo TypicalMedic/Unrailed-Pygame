@@ -1,3 +1,4 @@
+import datetime
 import functools
 import math
 
@@ -5,7 +6,6 @@ import Player
 from game import UnrailedGame
 
 import gymnasium
-import numpy as np
 from gymnasium.spaces import Discrete
 from gymnasium.spaces import MultiDiscrete
 from gymnasium.spaces import Box
@@ -15,6 +15,7 @@ from pettingzoo.utils import agent_selector, wrappers
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pygame as pg
 import pandas as pd
 
 
@@ -28,40 +29,6 @@ REMOVE_RAIL = 6
 
 MOVES = ["LEFT", "RIGHT", "UP", "DOWN", "STAND", "PLACE_RAIL", "REMOVE_RAIL"]
 NUM_ITERS = 600
-# REWARD_MAP = {
-#     (ROCK, ROCK): (0, 0),
-#     (ROCK, PAPER): (-1, 1),
-#     (ROCK, SCISSORS): (1, -1),
-#     (PAPER, ROCK): (1, -1),
-#     (PAPER, PAPER): (0, 0),
-#     (PAPER, SCISSORS): (-1, 1),
-#     (SCISSORS, ROCK): (-1, 1),
-#     (SCISSORS, PAPER): (1, -1),
-#     (SCISSORS, SCISSORS): (0, 0),
-# }
-
-
-# <editor-fold desc="variables for the environment?">
-screen_width = 600
-screen_height = 500
-tick_amount = 30
-collected_trees = 0
-collected_steel = 0
-collected_rails = 0
-trees_needed = 1
-steel_needed = 1
-info_panel_height = 100
-bgclr = (255, 255, 255)
-square_size = 20
-square_color = 'grey'
-game_over = False
-wall_amount = 50
-trees_amount = 50
-steel_amount = 50
-
-
-# </editor-fold>
-
 
 def env(render_mode=None, episode_every=1, episode_after=0, max_cycles=1e10, observation_radius=2):
     """
@@ -70,8 +37,8 @@ def env(render_mode=None, episode_every=1, episode_after=0, max_cycles=1e10, obs
     elsewhere in the developer documentation.
     """
     internal_render_mode = render_mode if render_mode != "ansi" else "human"
-    env = raw_env(render_mode=internal_render_mode, episode_every=episode_every,  episode_after=episode_after,
-                  max_cycles=max_cycles, observation_radius=observation_radius)
+    env = UnrailedEnv(render_mode=internal_render_mode, episode_every=episode_every, episode_after=episode_after,
+                      max_cycles=max_cycles, observation_radius=observation_radius)
     # This wrapper is only for environments which print results to the terminal
     # if render_mode == "ansi":
     #     env = wrappers.CaptureStdoutWrapper(env)
@@ -83,7 +50,7 @@ def env(render_mode=None, episode_every=1, episode_after=0, max_cycles=1e10, obs
     return env
 
 
-class raw_env(AECEnv):
+class UnrailedEnv(AECEnv):
     """
     The metadata holds environment constants. From gymnasium, we inherit the "render_modes",
     metadata which specifies which modes can be put into the render() method.
@@ -105,7 +72,7 @@ class raw_env(AECEnv):
         """
         self.GAME = UnrailedGame()
 
-        self.STATISTICS = {"player_0": [], "player_1": []}
+        self.record_path = ""
         self.low = low
         self.high = high
         self.max_cycles = max_cycles
@@ -119,22 +86,10 @@ class raw_env(AECEnv):
             zip(self.possible_agents, list(range(len(self.possible_agents))))
         )
 
-        # gymnasium spaces are defined and documented here: https://gymnasium.farama.org/api/spaces/
         # define what actions and how many of them are possible
         self._action_spaces = {agent: Discrete(7) for agent in self.possible_agents}
         # define what we want to observe
-        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        # self.observation_space = spaces.Dict(
-        #     {
-        #         "agent": spaces.Box(0, size - 1, shape=(2,), dtype=int),
-        #         "target": spaces.Box(0, size - 1, shape=(2,), dtype=int),
-        #     }
-        # )
-
         self._observation_spaces = {
-            # agent: MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-            #                            [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-            #                            [len(self.GAME.MAP_WALLS)], [1], [1], [1]]) for agent in self.possible_agents
             agent: Box(self.low, self.high, shape=(66, )) for agent in self.possible_agents
         }
 
@@ -146,11 +101,6 @@ class raw_env(AECEnv):
     # allows action space seeding to work as expected
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
-        # gymnasium spaces are defined and documented here: https://gymnasium.farama.org/api/spaces/
-        # return MultiDiscrete([[len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-        #                                [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)], [len(self.GAME.MAP_WALLS)],
-        #                                [len(self.GAME.MAP_WALLS)],  [1], [1], [1]])
-        # return Box(self.low, self.high, shape=(3,))
         return Box(self.low, self.high, shape=(66, ))
 
     @functools.lru_cache(maxsize=None)
@@ -171,40 +121,36 @@ class raw_env(AECEnv):
         if self.render_mode == "human" and self.GAME.episode % self.episode_every == 0 and \
                 self.GAME.episode >= self.episode_after:
             self.GAME.render_game([self._cumulative_rewards[agent] for agent in self.agents])
-        # if len(self.agents) == 2:
-        #     string = "Current state: Agent1: {} , Agent2: {}".format(
-        #         MOVES[self.state[self.agents[0]]], MOVES[self.state[self.agents[1]]]
-        #     )
-        # else:
-        #     string = "Game over"
-        # print(string)
+        # save image render sequence
+        if self.render_mode == "human_record" and self.GAME.episode % self.episode_every == 0 and \
+                (self.GAME.episode >= self.episode_after or self.GAME.episode == 0):
+            self.GAME.render_game([self._cumulative_rewards[agent] for agent in self.agents])
+            pg.image.save(self.GAME.screen, self.record_path + "\\" + '{:04d}'.format(self.num_frames) + ".jpeg")
 
     def calculate_observation(self, obs_radius, player: Player, ally_map):
+        # region array vars
         x = player.x
         y = player.y
-
         add_left = 0
         add_right = 0
         add_up = 0
         add_down = 0
+        # endregion
         if x - obs_radius >= 0:
             x_low = x - obs_radius
         else:
             x_low = 0
             add_left = abs(x - obs_radius)
-
         if x + obs_radius < self.GAME.field_x:
             x_high = x + obs_radius + 1
         else:
             x_high = self.GAME.field_x
             add_right = x + obs_radius - x_high + 1
-
         if y - obs_radius >= 0:
             y_low = y - obs_radius
         else:
             y_low = 0
             add_up = abs(y - obs_radius)
-
         if y + obs_radius < self.GAME.field_y:
             y_high = y + obs_radius + 1
         else:
@@ -212,13 +158,14 @@ class raw_env(AECEnv):
             add_down = y + obs_radius - y_high + 1
 
         walls = self.GAME.MAP_WALLS[y_low:y_high, x_low:x_high]
+        # region get other maps
         steel = self.GAME.MAP_STEEL[y_low:y_high, x_low:x_high]
         trees = self.GAME.MAP_TREES[y_low:y_high, x_low:x_high]
         ally = ally_map[y_low:y_high, x_low:x_high]
         train = self.GAME.MAP_TRAIN[y_low:y_high, x_low:x_high]
         station = self.GAME.MAP_STATION[y_low:y_high, x_low:x_high]
-
         rails = self.GAME.MAP_RAILS[y_low:y_high, x_low:x_high]  # separately
+        # endregion
 
         communication = [0, 0, 0]
         if ally.any():
@@ -241,12 +188,12 @@ class raw_env(AECEnv):
         if add_down != 0:
             combined_map = np.insert(combined_map, len(combined_map), [[1] for i in range(add_down)], axis=0)
             rails = np.insert(rails, len(rails), [[0] for i in range(add_down)], axis=0)
-
+        # region calculate last path rail coord
         x1 = self.GAME.rail_path[-1].rect.x // self.GAME.square_size if len(self.GAME.rail_path) > 0 \
             else self.GAME.used_rail_list[-1].rect.x // self.GAME.square_size
         y1 = self.GAME.rail_path[-1].rect.y // self.GAME.square_size if len(self.GAME.rail_path) > 0 \
             else self.GAME.used_rail_list[-1].rect.y // self.GAME.square_size
-
+        # endregion
         obs = combined_map.flatten()
         obs = np.append(obs, rails.flatten())
         obs = np.append(obs, [self.GAME.collected_rails, self.GAME.collected_steel, self.GAME.collected_trees])
@@ -306,7 +253,6 @@ class raw_env(AECEnv):
         self.GAME.dsp.quit()
         self.GAME = UnrailedGame()
 
-        self.STATISTICS = {"player_0": [], "player_1": []}
         self.agents = self.possible_agents[:]
         self.rewards = {agent: 0 for agent in self.agents}
         self._cumulative_rewards = {agent: 0 for agent in self.agents}
@@ -315,7 +261,6 @@ class raw_env(AECEnv):
         self.terminate = False
         self.truncate = False
         self.infos = {agent: {} for agent in self.agents}
-        # self.state = {agent: NONE for agent in self.agents} # ???
         self.observations = {agent: 0 for agent in self.agents}  # empty obs
         """
         Our agent_selector utility allows easy cyclic stepping through the agents list.
@@ -338,12 +283,11 @@ class raw_env(AECEnv):
         - agent_selection (to the next agent)
         And any internal state used by observe() or render()
         """
-
         agent = self.agent_selection
         for ag in self.agents:
             self.rewards[ag] = 0
 
-        self.terminate, self.rewards[agent] = self.GAME.step()
+        self.terminate, self.game_won, self.rewards[agent] = self.GAME.step()
         if self.GAME.game_over:
             for ag in self.agents:
                 self.rewards[ag] = self.rewards[agent]
@@ -354,8 +298,6 @@ class raw_env(AECEnv):
                 self.GAME.tick_count += 1
             elif agent == "player_1" and not self.GAME.rail_path_completed:
                 self.rewards[agent] += self.GAME.env_action_update(action, self.GAME.p1, self.GAME.MAP_PLAYER1)
-
-        self.STATISTICS[agent].append({"act": MOVES[action], "rew": self.rewards[agent]})
 
         if not self.terminate:
             self.num_frames += 1
@@ -370,6 +312,5 @@ class raw_env(AECEnv):
         self.agent_selection = self._agent_selector.next()
         self._accumulate_rewards()
 
-        if self.render_mode == "human":
-            self.render()
+        self.render()
 

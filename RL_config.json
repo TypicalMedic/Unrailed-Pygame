@@ -1,0 +1,10 @@
+{
+  "train_every":10,
+  "avg_freq":100,
+  "total_num_episodes":100,
+  "render_episode_every":1,
+  "render_episode_after":90,
+  "render_mode":"human",
+  "learning_rate":0.0001,
+  "discount":0.33
+}
